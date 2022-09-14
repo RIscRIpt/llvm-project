@@ -3495,6 +3495,13 @@ def MSNoTlsGuard : InheritableAttr {
   let SimpleHandler = 1;
 }
 
+def MSKnownSemantics : TypeAttr {
+  let LangOpts = [MicrosoftExt];
+  let Spellings = [CXX11<"msvc", "known_semantics">];
+  let Documentation = [MSKnownSemanticsDocs];
+  let SimpleHandler = 1;
+}
+
 def MSNoVTable : InheritableAttr, TargetSpecificAttr<TargetMicrosoftCXXABI> {
   let Spellings = [Declspec<"novtable">];
   let Subjects = SubjectList<[CXXRecord]>;

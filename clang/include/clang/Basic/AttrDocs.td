@@ -3488,6 +3488,15 @@ Has no effect on clang.
   }];
 }
 
+def MSKnownSemanticsDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+This attribute tells MSVC compiler that the type trait specialization
+have the standard-mandated semantics.
+Has no effect on clang.
+  }];
+}
+
 def MSNoVTableDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{

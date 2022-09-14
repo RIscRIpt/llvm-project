@@ -1745,6 +1745,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::AddressSpace:
   case attr::CmseNSCall:
   case attr::AnnotateType:
+  case attr::MSKnownSemantics:
     llvm_unreachable("This attribute should have been handled already");
 
   case attr::NSReturnsRetained:

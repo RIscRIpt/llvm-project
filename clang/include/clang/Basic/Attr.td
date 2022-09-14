@@ -3510,6 +3510,15 @@ def MSNoopDtor : InheritableAttr {
   let SimpleHandler = 1;
 }
 
+def MSConstexpr : DeclOrStmtAttr {
+  let LangOpts = [MicrosoftExt];
+  let Spellings = [CXX11<"msvc", "constexpr">];
+  let Subjects = SubjectList<[Function, Stmt], ErrorDiag,
+                             "functions and statements">;
+  let Documentation = [MSConstexprDocs];
+  let SimpleHandler = 1;
+}
+
 def MSNoVTable : InheritableAttr, TargetSpecificAttr<TargetMicrosoftCXXABI> {
   let Spellings = [Declspec<"novtable">];
   let Subjects = SubjectList<[CXXRecord]>;

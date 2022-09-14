@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fms-extensions -DMSX -ast-dump %s | FileCheck %s
-// RUN: not %clang_cc1 -Werror=ignored-attributes -ast-dump %s 2>&1 | grep "5 errors generated"
+// RUN: %clang_cc1 -fms-extensions -std=c++20 -DMSX -ast-dump %s | FileCheck %s
+// RUN: not %clang_cc1 -Werror=ignored-attributes -ast-dump %s 2>&1 | grep "8 errors generated"
 
 // CHECK: VarDecl 0x{{[0-9a-f]+}} <{{.*}}:[[@LINE+3]]:24, col:47> col:47 no_tls_guard_var
 // CHECK-NEXT: MSNoTlsGuardAttr 0x{{[0-9a-f]+}} <col:3, col:9>
@@ -21,3 +21,15 @@ struct Dtor {
   // CHECK-NEXT: MSNoopDtorAttr 0x{{[0-9a-f]+}} <col:5, col:11>
   [[msvc::noop_dtor]] ~Dtor() {}
 };
+
+// CHECK: FunctionDecl 0x{{[0-9a-f]+}} <line:[[@LINE+2]]:21, col:61> col:27 New1 'void *(void *)'
+// CHECK: MSConstexprAttr 0x{{[0-9a-f]+}} <col:3, col:9>
+[[msvc::constexpr]] void *New1(void *where) { return where; }
+
+// CHECK: FunctionDecl {{.*}} <line:[[@LINE+4]]:1, line:[[@LINE+6]]:1> line:[[@LINE+4]]:17 constexpr New2
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: AttributedStmt
+// CHECK-NEXT: MSConstexprAttr
+constexpr char *New2() {
+  [[msvc::constexpr]] return ::new char[1];
+}

@@ -3505,6 +3505,14 @@ Has no effect on clang.
   }];
 }
 
+def MSConstexprDocs : Documentation {
+  let Category = DocCatStmt;
+  let Content = [{
+This attribute allows MSVC compiler to use "externed constexpr".
+Has no effect on clang.
+  }];
+}
+
 def MSNoVTableDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{

@@ -3487,6 +3487,14 @@ def : MutualExclusions<[Owner, Pointer]>;
 
 // Microsoft-related attributes
 
+def MSNoTlsGuard : InheritableAttr {
+  let LangOpts = [MicrosoftExt];
+  let Spellings = [CXX11<"msvc", "no_tls_guard">];
+  let Subjects = SubjectList<[Var], ErrorDiag>;
+  let Documentation = [MSNoTlsGuardDocs];
+  let SimpleHandler = 1;
+}
+
 def MSNoVTable : InheritableAttr, TargetSpecificAttr<TargetMicrosoftCXXABI> {
   let Spellings = [Declspec<"novtable">];
   let Subjects = SubjectList<[CXXRecord]>;

@@ -3478,6 +3478,16 @@ an error:
 }];
 }
 
+def MSNoTlsGuardDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+This attribute can be added to a TLS variable to disable initialization
+test check in threads which existed before DLL was loaded.
+It applies behavior of '/Zc:tlsGuards-' flag to the variable.
+Has no effect on clang.
+  }];
+}
+
 def MSNoVTableDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{

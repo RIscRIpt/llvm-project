@@ -3497,6 +3497,14 @@ Has no effect on clang.
   }];
 }
 
+def MSNoopDtorDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+This attribute tells MSVC compiler that the destructor have no effects.
+Has no effect on clang.
+  }];
+}
+
 def MSNoVTableDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{

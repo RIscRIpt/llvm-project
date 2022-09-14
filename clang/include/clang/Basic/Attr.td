@@ -3502,6 +3502,14 @@ def MSKnownSemantics : TypeAttr {
   let SimpleHandler = 1;
 }
 
+def MSNoopDtor : InheritableAttr {
+  let LangOpts = [MicrosoftExt];
+  let Spellings = [CXX11<"msvc", "noop_dtor">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [MSNoopDtorDocs];
+  let SimpleHandler = 1;
+}
+
 def MSNoVTable : InheritableAttr, TargetSpecificAttr<TargetMicrosoftCXXABI> {
   let Spellings = [Declspec<"novtable">];
   let Subjects = SubjectList<[CXXRecord]>;

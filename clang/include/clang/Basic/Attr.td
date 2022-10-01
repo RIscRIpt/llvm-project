@@ -3500,6 +3500,14 @@ def : MutualExclusions<[Owner, Pointer]>;
 
 // Microsoft-related attributes
 
+def MSNoUniqueAddress : InheritableAttr, TargetSpecificAttr<TargetMicrosoftCXXABI> {
+  let LangOpts = [MicrosoftExt];
+  let Spellings = [CXX11<"msvc", "no_unique_address", 201803>];
+  let Subjects = SubjectList<[NonBitField], ErrorDiag>;
+  let Documentation = [NoUniqueAddressDocs];
+  let SimpleHandler = 1;
+}
+
 def MSNoVTable : InheritableAttr, TargetSpecificAttr<TargetMicrosoftCXXABI> {
   let Spellings = [Declspec<"novtable">];
   let Subjects = SubjectList<[CXXRecord]>;

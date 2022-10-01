@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -std=c++2a -fsyntax-only -triple x86_64-linux-gnu -fdump-record-layouts %s | FileCheck %s
+// RUN: %clang_cc1 -std=c++20 -fsyntax-only -fms-extensions -fc++-abi=microsoft -triple=x86_64-pc-windows-msvc -fdump-record-layouts -Dno_unique_address=msvc::no_unique_address %s | FileCheck %s
 
 namespace Empty {
   struct A {};

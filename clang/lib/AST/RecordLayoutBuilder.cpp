@@ -109,6 +109,9 @@ class EmptySubobjectMap {
   /// Class - The class whose empty entries we're keeping track of.
   const CXXRecordDecl *Class;
 
+  /// ABI of the Class
+  TargetCXXABI ABI;
+
   /// EmptyClassOffsets - A map from offsets to empty record decls.
   typedef llvm::TinyPtrVector<const CXXRecordDecl *> ClassVectorTy;
   typedef llvm::DenseMap<CharUnits, ClassVectorTy> EmptyClassOffsetsMapTy;
@@ -167,8 +170,8 @@ public:
   /// any empty classes.
   CharUnits SizeOfLargestEmptySubobject;
 
-  EmptySubobjectMap(const ASTContext &Context, const CXXRecordDecl *Class)
-  : Context(Context), CharWidth(Context.getCharWidth()), Class(Class) {
+  EmptySubobjectMap(const ASTContext &Context, const CXXRecordDecl *Class, TargetCXXABI ABI)
+  : Context(Context), CharWidth(Context.getCharWidth()), Class(Class), ABI(ABI) {
       ComputeEmptySubobjectSizes();
   }
 
@@ -474,7 +477,7 @@ EmptySubobjectMap::CanPlaceFieldAtOffset(const FieldDecl *FD,
 
   // We are able to place the member variable at this offset.
   // Make sure to update the empty field subobject map.
-  UpdateEmptyFieldSubobjects(FD, Offset, FD->hasAttr<NoUniqueAddressAttr>());
+  UpdateEmptyFieldSubobjects(FD, Offset, FD->hasNoUniqueAddress());
   return true;
 }
 
@@ -1853,7 +1856,7 @@ void ItaniumRecordLayoutBuilder::LayoutBitField(const FieldDecl *D) {
 void ItaniumRecordLayoutBuilder::LayoutField(const FieldDecl *D,
                                              bool InsertExtraPadding) {
   auto *FieldClass = D->getType()->getAsCXXRecordDecl();
-  bool PotentiallyOverlapping = D->hasAttr<NoUniqueAddressAttr>() && FieldClass;
+  bool PotentiallyOverlapping = D->hasNoUniqueAddress() && FieldClass;
   bool IsOverlappingEmptyField =
       PotentiallyOverlapping && FieldClass->isEmpty();
 
@@ -2532,7 +2535,7 @@ struct MicrosoftRecordLayoutBuilder {
     CharUnits Alignment;
   };
   typedef llvm::DenseMap<const CXXRecordDecl *, CharUnits> BaseOffsetsMapTy;
-  MicrosoftRecordLayoutBuilder(const ASTContext &Context) : Context(Context) {}
+  MicrosoftRecordLayoutBuilder(const ASTContext &Context, EmptySubobjectMap *EmptySubobjects) : Context(Context), EmptySubobjects(EmptySubobjects) {}
 private:
   MicrosoftRecordLayoutBuilder(const MicrosoftRecordLayoutBuilder &) = delete;
   void operator=(const MicrosoftRecordLayoutBuilder &) = delete;
@@ -2582,6 +2585,8 @@ public:
       llvm::SmallPtrSetImpl<const CXXRecordDecl *> &HasVtorDispSet,
       const CXXRecordDecl *RD) const;
   const ASTContext &Context;
+  /// 
+  EmptySubobjectMap *EmptySubobjects;
   /// The size of the record being laid out.
   CharUnits Size;
   /// The non-virtual size of the record layout.
@@ -2694,6 +2699,8 @@ MicrosoftRecordLayoutBuilder::getAdjustedElementInfo(
     }
     // Capture required alignment as a side-effect.
     RequiredAlignment = std::max(RequiredAlignment, FieldRequiredAlignment);
+    if (auto *FC = FD->getType()->getAsCXXRecordDecl(); FC && FD->hasNoUniqueAddress() && FC->isEmpty())
+      Info.Size = CharUnits::Zero();
   }
   // Respect pragma pack, attribute pack and declspec align
   if (!MaxFieldAlignment.isZero())
@@ -3290,8 +3297,9 @@ ASTContext::getASTRecordLayout(const RecordDecl *D) const {
   const ASTRecordLayout *NewEntry = nullptr;
 
   if (isMsLayout(*this)) {
-    MicrosoftRecordLayoutBuilder Builder(*this);
     if (const auto *RD = dyn_cast<CXXRecordDecl>(D)) {
+      EmptySubobjectMap EmptySubobjects(*this, RD, getTargetInfo().getCXXABI());
+      MicrosoftRecordLayoutBuilder Builder(*this, &EmptySubobjects);
       Builder.cxxLayout(RD);
       NewEntry = new (*this) ASTRecordLayout(
           *this, Builder.Size, Builder.Alignment, Builder.Alignment,
@@ -3303,6 +3311,7 @@ ASTContext::getASTRecordLayout(const RecordDecl *D) const {
           Builder.EndsWithZeroSizedObject, Builder.LeadsWithZeroSizedBase,
           Builder.Bases, Builder.VBases);
     } else {
+      MicrosoftRecordLayoutBuilder Builder(*this);
       Builder.layout(D);
       NewEntry = new (*this) ASTRecordLayout(
           *this, Builder.Size, Builder.Alignment, Builder.Alignment,
@@ -3311,7 +3320,7 @@ ASTContext::getASTRecordLayout(const RecordDecl *D) const {
     }
   } else {
     if (const auto *RD = dyn_cast<CXXRecordDecl>(D)) {
-      EmptySubobjectMap EmptySubobjects(*this, RD);
+      EmptySubobjectMap EmptySubobjects(*this, RD, getTargetInfo().getCXXABI());
       ItaniumRecordLayoutBuilder Builder(*this, &EmptySubobjects);
       Builder.Layout(RD);
 

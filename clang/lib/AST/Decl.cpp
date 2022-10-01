@@ -4269,6 +4269,10 @@ FieldDecl *FieldDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
                                nullptr, false, ICIS_NoInit);
 }
 
+bool FieldDecl::hasNoUniqueAddress() const {
+  return hasAttr<NoUniqueAddressAttr>() || hasAttr<MSNoUniqueAddressAttr>();
+}
+
 bool FieldDecl::isAnonymousStructOrUnion() const {
   if (!isImplicit() || getDeclName())
     return false;
@@ -4296,7 +4300,7 @@ bool FieldDecl::isZeroSize(const ASTContext &Ctx) const {
   // C++2a [intro.object]p7:
   //   An object has nonzero size if it
   //     -- is not a potentially-overlapping subobject, or
-  if (!hasAttr<NoUniqueAddressAttr>())
+  if (!hasNoUniqueAddress())
     return false;
 
   //     -- is not of class type, or

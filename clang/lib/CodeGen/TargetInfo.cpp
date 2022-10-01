@@ -578,8 +578,7 @@ static bool isEmptyField(ASTContext &Context, const FieldDecl *FD,
   // according to the Itanium ABI.  The exception applies only to records,
   // not arrays of records, so we must also check whether we stripped off an
   // array type above.
-  if (isa<CXXRecordDecl>(RT->getDecl()) &&
-      (WasArray || !FD->hasAttr<NoUniqueAddressAttr>()))
+  if (isa<CXXRecordDecl>(RT->getDecl()) && (WasArray || !FD->hasNoUniqueAddress()))
     return false;
 
   return isEmptyRecord(Context, FT, AllowArrays);
@@ -7523,8 +7522,7 @@ QualType SystemZABIInfo::GetSingleElementType(QualType Ty) const {
       // do count.  So do anonymous bitfields that aren't zero-sized.
 
       // Like isSingleElementStruct(), ignore C++20 empty data members.
-      if (FD->hasAttr<NoUniqueAddressAttr>() &&
-          isEmptyRecord(getContext(), FD->getType(), true))
+      if (FD->hasNoUniqueAddress() && isEmptyRecord(getContext(), FD->getType(), true))
         continue;
 
       // Unlike isSingleElementStruct(), arrays do not count.

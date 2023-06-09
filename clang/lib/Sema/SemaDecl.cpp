@@ -17101,17 +17101,31 @@ Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK, SourceLocation KWLoc,
     // technically forbidden by the current standard but which is
     // okay according to the likely resolution of an open issue;
     // see http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#407
+    //
+    // #63217: MSVC allows type aliases in `elaborated-type-specifier`,
+    // support them in context of friend declarations.
     if (getLangOpts().CPlusPlus) {
-      if (TypedefNameDecl *TD = dyn_cast<TypedefNameDecl>(PrevDecl)) {
-        if (const TagType *TT = TD->getUnderlyingType()->getAs<TagType>()) {
+      if (const auto *TD = dyn_cast<TypedefNameDecl>(PrevDecl)) {
+        QualType UT = TD->getUnderlyingType();
+        if (const auto *TT = UT->getAs<TagType>()) {
           TagDecl *Tag = TT->getDecl();
-          if (Tag->getDeclName() == Name &&
-              Tag->getDeclContext()->getRedeclContext()
-                          ->Equals(TD->getDeclContext()->getRedeclContext())) {
+          if ((Tag->getDeclName() == Name &&
+               Tag->getDeclContext()->getRedeclContext()->Equals(
+                   TD->getDeclContext()->getRedeclContext())) ||
+              (getLangOpts().MSVCCompat && TUK == TUK_Friend)) {
             PrevDecl = Tag;
             Previous.clear();
             Previous.addDecl(Tag);
             Previous.resolveKind();
+          }
+        } else if (getLangOpts().MSVCCompat && TUK == TUK_Friend) {
+          if (const auto *TST = UT->getAs<TemplateSpecializationType>()) {
+            OwnedDecl = false;
+            const auto *TTD = TST->getTemplateName().getAsTemplateDecl();
+            return CheckClassTemplate(
+                S, TagSpec, TUK_Friend, KWLoc, SS, TTD->getIdentifier(),
+                TTD->getLocation(), Attrs, TTD->getTemplateParameters(), AS,
+                ModulePrivateLoc, SourceLocation(), 0, nullptr, SkipBody);
           }
         }
       }

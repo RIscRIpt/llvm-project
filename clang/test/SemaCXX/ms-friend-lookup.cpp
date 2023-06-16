@@ -102,3 +102,26 @@ void f() {
 }
 
 }
+
+// #63217: MSVC allows type aliases in `elaborated-type-specifier`
+namespace friend_typedef
+{
+
+struct X {};
+struct Y {
+    using Z = X;
+    friend struct Z;
+};
+
+// #63217: MSVC allows type aliases in `elaborated-type-specifier`
+namespace template_friend_typedef
+{
+
+template<typename T>
+class X {};
+template<class T>
+class Y { typedef X<T> C; friend class C; };
+
+}
+
+}

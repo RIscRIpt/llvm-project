@@ -3588,6 +3588,10 @@ public:
   /// in a 'block', this returns the containing context.
   NamedDecl *getCurFunctionOrMethodDecl() const;
 
+  /// getCurScopeDecl - Return the Decl for either of:
+  /// block, lambda, captured statement, function, or translation unit.
+  Decl *getCurScopeDecl();
+
   /// Add this decl to the scope shadowed decl chains.
   void PushOnScopeChains(NamedDecl *D, Scope *S, bool AddToContext = true);
 
@@ -5674,6 +5678,7 @@ public:
                       SourceLocation LitEndLoc,
                       TemplateArgumentListInfo *ExplicitTemplateArgs = nullptr);
 
+  std::vector<Token> ExpandUnexpandableMsMacros(ArrayRef<Token> Toks);
   ExprResult BuildPredefinedExpr(SourceLocation Loc,
                                  PredefinedExpr::IdentKind IK);
   ExprResult ActOnPredefinedExpr(SourceLocation Loc, tok::TokenKind Kind);

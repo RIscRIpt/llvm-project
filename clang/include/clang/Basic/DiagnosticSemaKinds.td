@@ -115,6 +115,9 @@ def ext_predef_outside_function : Warning<
 def ext_init_from_predefined : ExtWarn<
   "initializing an array from a '%0' predefined identifier is a Microsoft extension">,
   InGroup<MicrosoftInitFromPredefined>;
+def ext_concat_predef_ms : ExtWarn<
+  "concatenation of predefined identifier '%0' is a Microsoft extension">,
+  InGroup<MicrosoftConcatPredefined>;
 def warn_float_overflow : Warning<
   "magnitude of floating-point constant too large for type %0; maximum is %1">,
    InGroup<LiteralRange>;

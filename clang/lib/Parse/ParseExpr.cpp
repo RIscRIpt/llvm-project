@@ -1297,9 +1297,14 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw_L__FUNCTION__:   // primary-expression: L__FUNCTION__ [MS]
   case tok::kw_L__FUNCSIG__:    // primary-expression: L__FUNCSIG__ [MS]
   case tok::kw___PRETTY_FUNCTION__:  // primary-expression: __P..Y_F..N__ [GNU]
-    Res = Actions.ActOnPredefinedExpr(Tok.getLocation(), SavedKind);
-    ConsumeToken();
-    break;
+    if (!getLangOpts().MicrosoftExt || !tok::isUnexpandableMsMacro(SavedKind) ||
+        !tok::isUnexpandableMsMacro(NextToken().getKind()) &&
+            !tok::isStringLiteral(NextToken().getKind())) {
+      Res = Actions.ActOnPredefinedExpr(Tok.getLocation(), SavedKind);
+      ConsumeToken();
+      break;
+    }
+    [[fallthrough]]; // treat MS unexpandable macros as concatenable strings
   case tok::string_literal:    // primary-expression: string-literal
   case tok::wide_string_literal:
   case tok::utf8_string_literal:
@@ -3267,16 +3272,23 @@ ExprResult Parser::ParseUnevaluatedStringLiteralExpression() {
 
 ExprResult Parser::ParseStringLiteralExpression(bool AllowUserDefinedLiteral,
                                                 bool Unevaluated) {
-  assert(isTokenStringLiteral() && "Not a string literal!");
+  assert(isTokenLikeStringLiteral() && "Not a string-literal-like token!");
 
-  // String concat.  Note that keywords like __func__ and __FUNCTION__ are not
-  // considered to be strings for concatenation purposes.
+  // String concatenation.
+  // Note that keywords like __func__ and __FUNCTION__
+  // are not considered to be strings for concatenation purposes,
+  // unless Microsoft extensions are enabled.
   SmallVector<Token, 4> StringToks;
 
   do {
     StringToks.push_back(Tok);
-    ConsumeStringToken();
-  } while (isTokenStringLiteral());
+    ConsumeAnyToken();
+  } while (isTokenLikeStringLiteral());
+
+  assert(
+      (StringToks.size() != 1 ||
+       !tok::isUnexpandableMsMacro(StringToks[0].getKind())) &&
+      "single predefined identifiers shall be handled by ActOnPredefinedExpr");
 
   if (Unevaluated) {
     assert(!AllowUserDefinedLiteral && "UDL are always evaluated");

@@ -574,6 +574,13 @@ private:
   bool isTokenStringLiteral() const {
     return tok::isStringLiteral(Tok.getKind());
   }
+  /// isTokenLikeStringLiteral - Return true if the cur token
+  /// can be treated as a string literal.
+  bool isTokenLikeStringLiteral() const {
+    return isTokenStringLiteral() ||
+           getLangOpts().MicrosoftExt &&
+               tok::isUnexpandableMsMacro(Tok.getKind());
+  }
   /// isTokenSpecial - True if this token requires special consumption methods.
   bool isTokenSpecial() const {
     return isTokenStringLiteral() || isTokenParen() || isTokenBracket() ||

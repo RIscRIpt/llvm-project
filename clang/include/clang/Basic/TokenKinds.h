@@ -84,6 +84,14 @@ inline bool isAnyIdentifier(TokenKind K) {
   return (K == tok::identifier) || (K == tok::raw_identifier);
 }
 
+/// Return true if this token is a predefined macro
+/// unexpandable by MSVC preprocessor.
+inline bool isUnexpandableMsMacro(TokenKind K) {
+  return K == tok::kw___FUNCTION__ || K == tok::kw___FUNCSIG__ ||
+         K == tok::kw_L__FUNCTION__ || K == tok::kw_L__FUNCSIG__ ||
+         K == tok::kw___FUNCDNAME__;
+}
+
 /// Return true if this is a C or C++ string-literal (or
 /// C++11 user-defined-string-literal) token.
 inline bool isStringLiteral(TokenKind K) {

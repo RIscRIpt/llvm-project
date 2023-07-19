@@ -262,6 +262,8 @@ Non-comprehensive list of changes in this release
 - Added ``__builtin_elementwise_nearbyint`` for floating point
   types. This allows access to ``llvm.nearbyint`` for arbitrary
   floating-point and vector of floating-point types.
+- The default value of `_MSC_VER` was raised from 1920 to 1933.
+  MSVC 19.33 added undocumented attribute ``[[msvc::constexpr]]``.
 
 New Compiler Flags
 ------------------

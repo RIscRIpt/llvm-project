@@ -1490,6 +1490,21 @@ unsigned MicrosoftARM64TargetInfo::getMinGlobalAlign(uint64_t TypeSize) const {
   return Align;
 }
 
+MicrosoftARM64ECTargetInfo::MicrosoftARM64ECTargetInfo(
+    const llvm::Triple &Triple, const TargetOptions &Opts)
+    : MicrosoftX86_64TargetInfo(Triple, Opts) {}
+
+void MicrosoftARM64ECTargetInfo::getTargetDefines(const LangOptions &Opts,
+                                                  MacroBuilder &Builder) const {
+  MicrosoftX86_64TargetInfo::getTargetDefines(Opts, Builder);
+  Builder.defineMacro("_M_ARM64EC", "1");
+}
+
+ArrayRef<Builtin::Info> MicrosoftARM64ECTargetInfo::getTargetBuiltins() const {
+  return llvm::ArrayRef(BuiltinInfo, clang::AArch64::LastTSBuiltin -
+                                         Builtin::FirstTSBuiltin);
+}
+
 MinGWARM64TargetInfo::MinGWARM64TargetInfo(const llvm::Triple &Triple,
                                            const TargetOptions &Opts)
     : WindowsARM64TargetInfo(Triple, Opts) {

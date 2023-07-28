@@ -172,7 +172,10 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
         return std::make_unique<MinGWARM64TargetInfo>(Triple, Opts);
       case llvm::Triple::MSVC:
       default: // Assume MSVC for unknown environments
-        return std::make_unique<MicrosoftARM64TargetInfo>(Triple, Opts);
+        if (Triple.isWindowsArm64EC())
+          return std::make_unique<MicrosoftARM64ECTargetInfo>(Triple, Opts);
+        else
+          return std::make_unique<MicrosoftARM64TargetInfo>(Triple, Opts);
       }
     default:
       return std::make_unique<AArch64leTargetInfo>(Triple, Opts);

@@ -14,6 +14,7 @@
 #define LLVM_CLANG_LIB_BASIC_TARGETS_AARCH64_H
 
 #include "OSTargets.h"
+#include "X86.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "llvm/TargetParser/AArch64TargetParser.h"
 #include <optional>
@@ -234,6 +235,17 @@ public:
   getCallingConvKind(bool ClangABICompat4) const override;
 
   unsigned getMinGlobalAlign(uint64_t TypeSize) const override;
+};
+
+// Windows ARM64EC, MS (C++) ABI
+class LLVM_LIBRARY_VISIBILITY MicrosoftARM64ECTargetInfo
+    : public virtual MicrosoftX86_64TargetInfo {
+public:
+  MicrosoftARM64ECTargetInfo(const llvm::Triple &Triple,
+                             const TargetOptions &Opts);
+  void getTargetDefines(const LangOptions &Opts,
+                        MacroBuilder &Builder) const override;
+  ArrayRef<Builtin::Info> getTargetBuiltins() const override;
 };
 
 // ARM64 MinGW target

@@ -19,6 +19,7 @@
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Lex/LexDiagnostic.h"
 #include "clang/Lex/Lexer.h"
+#include "clang/Lex/LiteralSupport.h"
 #include "clang/Lex/MacroArgs.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/Preprocessor.h"
@@ -461,14 +462,21 @@ void TokenLexer::ExpandFunctionArguments() {
       // If the arg token expanded into anything, append it.
       if (ResultArgToks->isNot(tok::eof)) {
         size_t FirstResult = ResultToks.size();
-        unsigned NumToks = MacroArgs::getArgLength(ResultArgToks);
-        ResultToks.append(ResultArgToks, ResultArgToks+NumToks);
+
+        for (const auto *AT = ResultArgToks; AT->isNot(tok::eof); AT++) {
+          if (isFunctionLocalStringLiteralMacro(AT->getKind(),
+                                                PP.getLangOpts()))
+            PP.ExpandFunctionLocalMacro(ResultToks, *AT);
+          else
+            ResultToks.push_back(*AT);
+        }
 
         // In Microsoft-compatibility mode, we follow MSVC's preprocessing
         // behavior by not considering single commas from nested macro
         // expansions as argument separators. Set a flag on the token so we can
         // test for this later when the macro expansion is processed.
-        if (PP.getLangOpts().MSVCCompat && NumToks == 1 &&
+        if (PP.getLangOpts().MSVCCompat &&
+            ResultToks.size() - FirstResult == 1 &&
             ResultToks.back().is(tok::comma))
           ResultToks.back().setFlag(Token::IgnoredComma);
 
@@ -526,30 +534,33 @@ void TokenLexer::ExpandFunctionArguments() {
       }
 
       ResultToks.append(ArgToks, ArgToks+NumToks);
+      auto FirstResultTok = ResultToks.end() - NumToks;
 
       // If the '##' came from expanding an argument, turn it into 'unknown'
       // to avoid pasting.
-      for (Token &Tok : llvm::make_range(ResultToks.end() - NumToks,
-                                         ResultToks.end())) {
+      for (Token &Tok : llvm::make_range(FirstResultTok, ResultToks.end()))
         if (Tok.is(tok::hashhash))
           Tok.setKind(tok::unknown);
-      }
 
-      if (ExpandLocStart.isValid()) {
-        updateLocForMacroArgTokens(CurTok.getLocation(),
-                                   ResultToks.end()-NumToks, ResultToks.end());
-      }
+      if (ExpandLocStart.isValid())
+        updateLocForMacroArgTokens(CurTok.getLocation(), FirstResultTok,
+                                   ResultToks.end());
 
       // Transfer the leading whitespace information from the token
       // (the macro argument) onto the first token of the
       // expansion. Note that we don't do this for the GNU
       // pseudo-paste extension ", ## __VA_ARGS__".
       if (!VaArgsPseudoPaste) {
-        ResultToks[ResultToks.size() - NumToks].setFlagValue(Token::StartOfLine,
-                                                             false);
-        ResultToks[ResultToks.size() - NumToks].setFlagValue(
-            Token::LeadingSpace, NextTokGetsSpace);
+        FirstResultTok->clearFlag(Token::StartOfLine);
+        FirstResultTok->setFlagValue(Token::LeadingSpace, NextTokGetsSpace);
       }
+
+      // In Microsoft-compatibility mode, if we are pasting string literal
+      // prefix (i.e. u8,L,u,U) and __FSTREXP followed by function local macro
+      // (e.g. __FUNCTION__), replace tokens to form __LPREFIX-like expression.
+      if (PP.getLangOpts().MicrosoftExt && PasteBefore && NumToks >= 2 &&
+          ResultToks.size() >= NumToks + 2)
+        PP.HandleMicrosoftFStrExpPaste(ResultToks, FirstResultTok);
 
       NextTokGetsSpace = false;
       continue;

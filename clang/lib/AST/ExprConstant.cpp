@@ -2061,6 +2061,8 @@ static bool IsGlobalLValue(APValue::LValueBase B) {
     return cast<MaterializeTemporaryExpr>(E)->getStorageDuration() == SD_Static;
   // A string literal has static storage duration.
   case Expr::StringLiteralClass:
+  case Expr::MSCompositeStringLiteralClass:
+  case Expr::MSCastStringExprClass:
   case Expr::PredefinedExprClass:
   case Expr::ObjCStringLiteralClass:
   case Expr::ObjCEncodeExprClass:
@@ -2205,7 +2207,9 @@ static bool CheckLValueConstantExpression(EvalInfo &Info, SourceLocation Loc,
     StringRef Ident;
     if (Base.is<TypeInfoLValue>())
       InvalidBaseKind = 0;
-    else if (isa_and_nonnull<StringLiteral>(BaseE))
+    else if (isa_and_nonnull<StringLiteral>(BaseE) ||
+             isa_and_nonnull<MSCompositeStringLiteral>(BaseE) ||
+             isa_and_nonnull<MSCastStringExpr>(BaseE))
       InvalidBaseKind = 1;
     else if (isa_and_nonnull<MaterializeTemporaryExpr>(BaseE) ||
              isa_and_nonnull<LifetimeExtendedTemporaryDecl>(BaseVD))
@@ -3425,6 +3429,7 @@ static APSInt extractStringLiteralCharacter(EvalInfo &Info, const Expr *Lit,
     return APSInt::getUnsigned(Str.c_str()[Index]);
   }
 
+  // TODO: handle my Microsoft Extensions
   if (auto PE = dyn_cast<PredefinedExpr>(Lit))
     Lit = PE->getFunctionName();
   const StringLiteral *S = cast<StringLiteral>(Lit);
@@ -3447,6 +3452,7 @@ static APSInt extractStringLiteralCharacter(EvalInfo &Info, const Expr *Lit,
 static void expandStringLiteral(EvalInfo &Info, const StringLiteral *S,
                                 APValue &Result,
                                 QualType AllocType = QualType()) {
+  // TODO: maybe handle my Microsoft extensions
   const ConstantArrayType *CAT = Info.Ctx.getAsConstantArrayType(
       AllocType.isNull() ? S->getType() : AllocType);
   assert(CAT && "string literal isn't an array");
@@ -4331,7 +4337,7 @@ handleLValueToRValueConversion(EvalInfo &Info, const Expr *Conv, QualType Type,
 
       CompleteObject LitObj(LVal.Base, &Lit, Base->getType());
       return extractSubobject(Info, Conv, LitObj, LVal.Designator, RVal, AK);
-    } else if (isa<StringLiteral>(Base) || isa<PredefinedExpr>(Base)) {
+    } else if (isa<StringLiteral>(Base) || isa<MSCompositeStringLiteral>(Base) || isa<MSCastStringExpr>(Base) || isa<PredefinedExpr>(Base)) {
       // Special-case character extraction so we don't have to construct an
       // APValue for the whole string.
       assert(LVal.Designator.Entries.size() <= 1 &&
@@ -7666,6 +7672,12 @@ public:
   bool VisitPredefinedExpr(const PredefinedExpr *E) {
     return StmtVisitorTy::Visit(E->getFunctionName());
   }
+  bool VisitMSCompositeStringLiteral(const MSCompositeStringLiteral *E) {
+    return StmtVisitorTy::Visit(E->getStringLiteral());
+  }
+  bool VisitMSCastStringExpr(const MSCastStringExpr *E) {
+    return StmtVisitorTy::Visit(E->getStringLiteral());
+  }
   bool VisitConstantExpr(const ConstantExpr *E) {
     if (E->hasAPValueResult())
       return DerivedSuccess(E->getAPValueResult(), E);
@@ -8369,6 +8381,8 @@ public:
 // - Literals
 //  * CompoundLiteralExpr in C (and in global scope in C++)
 //  * StringLiteral
+//  * MSCompositeStringLiteral
+//  * MSCastStringExpr
 //  * PredefinedExpr
 //  * ObjCStringLiteralExpr
 //  * ObjCEncodeExpr
@@ -8404,6 +8418,8 @@ public:
   bool VisitCompoundLiteralExpr(const CompoundLiteralExpr *E);
   bool VisitMemberExpr(const MemberExpr *E);
   bool VisitStringLiteral(const StringLiteral *E) { return Success(E); }
+  bool VisitMSCompositeStringLiteral(const MSCompositeStringLiteral *E) { return Success(E); }
+  bool VisitMSCastStringExpr(const MSCastStringExpr *E) { return Success(E); }
   bool VisitObjCEncodeExpr(const ObjCEncodeExpr *E) { return Success(E); }
   bool VisitCXXTypeidExpr(const CXXTypeidExpr *E);
   bool VisitCXXUuidofExpr(const CXXUuidofExpr *E);
@@ -10921,6 +10937,14 @@ namespace {
     bool VisitStringLiteral(const StringLiteral *E,
                             QualType AllocType = QualType()) {
       expandStringLiteral(Info, E, Result, AllocType);
+      return true;
+    }
+    bool VisitMSCompositeStringLiteral(const MSCompositeStringLiteral *E,QualType AllocType = QualType()) {
+      expandStringLiteral(Info, E->getStringLiteral(), Result, AllocType);
+      return true;
+    }
+    bool VisitMSCastStringExpr(const MSCastStringExpr *E, QualType AllocType = QualType()) {
+      expandStringLiteral(Info, E->getStringLiteral(), Result, AllocType);
       return true;
     }
     bool VisitCXXParenListInitExpr(const CXXParenListInitExpr *E);
@@ -15905,6 +15929,8 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::FloatingLiteralClass:
   case Expr::ImaginaryLiteralClass:
   case Expr::StringLiteralClass:
+  case Expr::MSCompositeStringLiteralClass:
+  case Expr::MSCastStringExprClass:
   case Expr::ArraySubscriptExprClass:
   case Expr::MatrixSubscriptExprClass:
   case Expr::OMPArraySectionExprClass:

@@ -1411,6 +1411,8 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Expr::PredefinedExprClass:
   case Expr::SizeOfPackExprClass:
   case Expr::StringLiteralClass:
+  case Expr::MSCompositeStringLiteralClass:
+  case Expr::MSCastStringExprClass:
   case Expr::SourceLocExprClass:
   case Expr::ConceptSpecializationExprClass:
   case Expr::RequiresExprClass:

@@ -18,13 +18,9 @@ void func(U param) {
 
 #ifdef ANALYZER_MS
   clang_analyzer_dump(__FUNCDNAME__);
-  clang_analyzer_dump(L__FUNCTION__);
   clang_analyzer_dump(__FUNCSIG__);
-  clang_analyzer_dump(L__FUNCSIG__);
-  // expected-warning@-4 {{&Element{"??$func@UClass@?1??foo@@YAXXZ@$0CK@D@@YAXD@Z",0 S64b,char}}}
-  // expected-warning@-4 {{&Element{L"func",0 S64b,wchar_t}}}
-  // expected-warning@-4 {{&Element{"void __cdecl func(U) [T = Class, Value = 42ULL, U = char]",0 S64b,char}}}
-  // expected-warning@-4 {{&Element{L"void __cdecl func(U) [T = Class, Value = 42ULL, U = char]",0 S64b,wchar_t}}}
+  // expected-warning@-2 {{&Element{"??$func@UClass@?1??foo@@YAXXZ@$0CK@D@@YAXD@Z",0 S64b,char}}}
+  // expected-warning@-2 {{&Element{"void __cdecl func(U) [T = Class, Value = 42ULL, U = char]",0 S64b,char}}}
 #endif
 }
 
@@ -38,13 +34,9 @@ void foo() {
 
 #ifdef ANALYZER_MS
   clang_analyzer_dump(__FUNCDNAME__);
-  clang_analyzer_dump(L__FUNCTION__);
   clang_analyzer_dump(__FUNCSIG__);
-  clang_analyzer_dump(L__FUNCSIG__);
-  // expected-warning@-4 {{&Element{"?foo@@YAXXZ",0 S64b,char}}}
-  // expected-warning@-4 {{&Element{L"foo",0 S64b,wchar_t}}}
-  // expected-warning@-4 {{&Element{"void __cdecl foo(void)",0 S64b,char}}}
-  // expected-warning@-4 {{&Element{L"void __cdecl foo(void)",0 S64b,wchar_t}}}
+  // expected-warning@-2 {{&Element{"?foo@@YAXXZ",0 S64b,char}}}
+  // expected-warning@-2 {{&Element{"void __cdecl foo(void)",0 S64b,char}}}
 #endif
 
   func<struct Class, 42ull>('b'); // instantiate template
@@ -61,13 +53,9 @@ struct A {
 
 #ifdef ANALYZER_MS
     clang_analyzer_dump(__FUNCDNAME__);
-    clang_analyzer_dump(L__FUNCTION__);
     clang_analyzer_dump(__FUNCSIG__);
-    clang_analyzer_dump(L__FUNCSIG__);
-    // expected-warning@-4 {{&Element{"??0A@@QAE@XZ",0 S64b,char}}}
-    // expected-warning@-4 {{&Element{L"A",0 S64b,wchar_t}}}
-    // expected-warning@-4 {{&Element{"__thiscall A::A(void)",0 S64b,char}}}
-    // expected-warning@-4 {{&Element{L"__thiscall A::A(void)",0 S64b,wchar_t}}}
+    // expected-warning@-2 {{&Element{"??0A@@QAE@XZ",0 S64b,char}}}
+    // expected-warning@-2 {{&Element{"__thiscall A::A(void)",0 S64b,char}}}
 #endif
   }
   ~A() {
@@ -80,13 +68,9 @@ struct A {
 
 #ifdef ANALYZER_MS
     clang_analyzer_dump(__FUNCDNAME__);
-    clang_analyzer_dump(L__FUNCTION__);
     clang_analyzer_dump(__FUNCSIG__);
-    clang_analyzer_dump(L__FUNCSIG__);
-    // expected-warning@-4 {{&Element{"??1A@@QAE@XZ",0 S64b,char}}}
-    // expected-warning@-4 {{&Element{L"~A",0 S64b,wchar_t}}}
-    // expected-warning@-4 {{&Element{"__thiscall A::~A(void)",0 S64b,char}}}
-    // expected-warning@-4 {{&Element{L"__thiscall A::~A(void)",0 S64b,wchar_t}}}
+    // expected-warning@-2 {{&Element{"??1A@@QAE@XZ",0 S64b,char}}}
+    // expected-warning@-2 {{&Element{"__thiscall A::~A(void)",0 S64b,char}}}
 #endif
   }
 

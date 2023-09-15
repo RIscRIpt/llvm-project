@@ -3128,8 +3128,7 @@ LValue CodeGenFunction::EmitPredefinedLValue(const PredefinedExpr *E) {
   StringRef FnName = CurFn->getName();
   if (FnName.startswith("\01"))
     FnName = FnName.substr(1);
-  StringRef NameItems[] = {
-      PredefinedExpr::getIdentKindName(E->getIdentKind()), FnName};
+  StringRef NameItems[] = {E->getIdentKindName(), FnName};
   std::string GVName = llvm::join(NameItems, NameItems + 2, ".");
   if (auto *BD = dyn_cast_or_null<BlockDecl>(CurCodeDecl)) {
     std::string Name = std::string(SL->getString());

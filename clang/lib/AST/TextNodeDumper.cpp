@@ -1187,7 +1187,7 @@ void TextNodeDumper::VisitSYCLUniqueStableNameExpr(
 }
 
 void TextNodeDumper::VisitPredefinedExpr(const PredefinedExpr *Node) {
-  OS << " " << PredefinedExpr::getIdentKindName(Node->getIdentKind());
+  OS << " " << Node->getIdentKindName();
 }
 
 void TextNodeDumper::VisitCharacterLiteral(const CharacterLiteral *Node) {

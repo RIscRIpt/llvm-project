@@ -1782,6 +1782,17 @@ public:
   ExprResult ParseUnevaluatedStringLiteralExpression();
 
 private:
+  /// CollectStringLikeTokens - consumes all tokens like string literal (see
+  /// tokenIsLikeStringLiteral), and stores them into the given StringToks.
+  /// In Microsoft mode, this method expands Microsoft function local
+  /// predefined macros (e.g. __FUNCTION__), and handles __LPREFIX-like
+  /// expressions, which change encoding of string literals.
+  void CollectStringLikeTokens(SmallVectorImpl<Token> &StringToks);
+
+  /// ParseMicrosoftForceStringExpression - parses current __LPREFIX-like
+  /// expression and replaces current Tok with a resulting string literal.
+  bool ParseMicrosoftForceStringExpression();
+
   ExprResult ParseStringLiteralExpression(bool AllowUserDefinedLiteral,
                                           bool Unevaluated);
 

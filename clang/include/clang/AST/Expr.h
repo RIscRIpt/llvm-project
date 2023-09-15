@@ -1902,6 +1902,11 @@ public:
   unsigned getLength() const { return *getTrailingObjects<unsigned>(); }
   unsigned getCharByteWidth() const { return StringLiteralBits.CharByteWidth; }
 
+  void setKind(StringKind K) {
+    StringLiteralBits.Kind = K;
+    assert(StringLiteralBits.Kind == K && "not enough bits to set StringKind");
+  }
+
   StringKind getKind() const {
     return static_cast<StringKind>(StringLiteralBits.Kind);
   }
@@ -1994,10 +1999,8 @@ public:
   enum IdentKind {
     Func,
     Function,
-    LFunction, // Same as Function, but as wide string.
     FuncDName,
     FuncSig,
-    LFuncSig, // Same as FuncSig, but as wide string
     PrettyFunction,
     /// The same as PrettyFunction, except that the
     /// 'virtual' keyword is omitted for virtual member functions.

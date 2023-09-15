@@ -708,14 +708,10 @@ StringRef PredefinedExpr::getIdentKindName(PredefinedExpr::IdentKind IK) {
     return "__FUNCTION__";
   case FuncDName:
     return "__FUNCDNAME__";
-  case LFunction:
-    return "L__FUNCTION__";
-  case PrettyFunction:
-    return "__PRETTY_FUNCTION__";
   case FuncSig:
     return "__FUNCSIG__";
-  case LFuncSig:
-    return "L__FUNCSIG__";
+  case PrettyFunction:
+    return "__PRETTY_FUNCTION__";
   case PrettyFunctionNoVirtual:
     break;
   }
@@ -772,8 +768,7 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
     return std::string(Out.str());
   }
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(CurrentDecl)) {
-    if (IK != PrettyFunction && IK != PrettyFunctionNoVirtual &&
-        IK != FuncSig && IK != LFuncSig)
+    if (IK != PrettyFunction && IK != PrettyFunctionNoVirtual && IK != FuncSig)
       return FD->getNameAsString();
 
     SmallString<256> Name;
@@ -812,7 +807,7 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
     if (FD->hasWrittenPrototype())
       FT = dyn_cast<FunctionProtoType>(AFT);
 
-    if (IK == FuncSig || IK == LFuncSig) {
+    if (IK == FuncSig) {
       switch (AFT->getCallConv()) {
       case CC_C: POut << "__cdecl "; break;
       case CC_X86StdCall: POut << "__stdcall "; break;
@@ -837,8 +832,7 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
       if (FT->isVariadic()) {
         if (FD->getNumParams()) POut << ", ";
         POut << "...";
-      } else if ((IK == FuncSig || IK == LFuncSig ||
-                  !Context.getLangOpts().CPlusPlus) &&
+      } else if ((IK == FuncSig || !Context.getLangOpts().CPlusPlus) &&
                  !Decl->getNumParams()) {
         POut << "void";
       }

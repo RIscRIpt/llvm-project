@@ -5727,10 +5727,10 @@ public:
                       SourceLocation LitEndLoc,
                       TemplateArgumentListInfo *ExplicitTemplateArgs = nullptr);
 
-  // ExpandFunctionLocalPredefinedMacros - Returns a new vector of Tokens,
-  // where Tokens representing function local predefined macros (such as
-  // __FUNCTION__) are replaced (expanded) with string-literal Tokens.
-  std::vector<Token> ExpandFunctionLocalPredefinedMacros(ArrayRef<Token> Toks);
+  // ExpandFunctionLocalPredefinedMacro - In Microsoft compatible mode this
+  // method expands a given Token representing function local predefined macros
+  // (e.g.  __FUNCTION__) to string-literal token.
+  void ExpandFunctionLocalPredefinedMacro(Token &Tok);
 
   ExprResult BuildPredefinedExpr(SourceLocation Loc,
                                  PredefinedExpr::IdentKind IK);

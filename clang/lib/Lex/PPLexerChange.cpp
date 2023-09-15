@@ -15,9 +15,11 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/LexDiagnostic.h"
+#include "clang/Lex/LiteralSupport.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
+#include "clang/Lex/ScratchBuffer.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBufferRef.h"
@@ -695,6 +697,83 @@ void Preprocessor::HandleMicrosoftCommentPaste(Token &Tok) {
   // active (an active lexer would return EOD at EOF if there was no \n in
   // preprocessor directive mode), so just return EOF as our token.
   assert(!FoundLexer && "Lexer should return EOD before EOF in PP mode");
+}
+
+/// SeparateFromPrimaryToken - adds leading space to the second token, if the
+/// first one is an identifier or a literal.
+static void SeparateFromPrimaryToken(const Token &A, Token &B) {
+  B.setFlagValue(Token::LeadingSpace, A.isAnyIdentifier() || A.isLiteral());
+}
+
+void Preprocessor::ExpandFunctionLocalMacro(SmallVectorImpl<Token> &TS,
+                                            const Token &Tok) {
+  assert(isFunctionLocalStringLiteralMacro(Tok.getKind(), getLangOpts()));
+
+  auto &FstrExp = TS.emplace_back();
+  FstrExp.startToken();
+  FstrExp.setKind(tok::identifier);
+  FstrExp.setIdentifierInfo(Ident__FSTREXP);
+  FstrExp.setLocation(Tok.getLocation());
+  FstrExp.setLength(Ident__FSTREXP->getLength());
+  if (TS.size() >= 2)
+    SeparateFromPrimaryToken(TS[TS.size() - 2], FstrExp);
+
+  TS.push_back(Tok);
+  TS.back().setFlag(Token::LeadingSpace);
+}
+
+bool Preprocessor::HandleMicrosoftFStrExpPaste(MutableArrayRef<Token> Tokens,
+                                               Token *FStrExpToken) {
+  assert(Tokens.begin() + 2 <= FStrExpToken);
+  assert(FStrExpToken + 1 < Tokens.end());
+
+  auto TS = FStrExpToken - 2;
+
+  // Paste and replacement of __FSTREXP can occur only in a macro
+  if (!CurTokenLexer)
+    return false;
+
+  if (!TS[0].is(tok::identifier) || !TS[1].is(tok::hashhash) ||
+      !TS[2].is(tok::identifier) ||
+      TS[2].getIdentifierInfo() != Ident__FSTREXP ||
+      !isFunctionLocalStringLiteralMacro(TS[3].getKind(), getLangOpts()))
+    return false;
+
+  auto Prefix =
+      llvm::StringSwitch<tok::TokenKind>(TS[0].getIdentifierInfo()->getName())
+          .Case("u8", tok::kw___lPREFIX)
+          .Case("L", tok::kw___LPREFIX)
+          .Case("u", tok::kw___uPREFIX)
+          .Case("U", tok::kw___UPREFIX)
+          .Default(tok::unknown);
+
+  if (Prefix == tok::unknown)
+    return false;
+
+  auto ReplaceTok = [&](Token &T, tok::TokenKind Kind, StringRef Spelling) {
+    const char *Buf;
+    auto SpellingLoc =
+        ScratchBuf->getToken(Spelling.data(), Spelling.size(), Buf);
+    auto ExpandLoc = T.getLocation();
+    auto Loc = SourceMgr.createMacroArgExpansionLoc(SpellingLoc, ExpandLoc,
+                                                    T.getLength());
+
+    T.startToken();
+    T.setKind(Kind);
+    T.setLength(Spelling.size());
+    T.setLocation(Loc);
+  };
+
+  ReplaceTok(TS[0], Prefix, tok::getKeywordSpelling(Prefix));
+  ReplaceTok(TS[1], tok::l_paren, tok::getPunctuatorSpelling(tok::l_paren));
+  TS[2] = TS[3];
+  TS[2].clearFlag(Token::TokenFlags(~0)); // clear all flags
+  ReplaceTok(TS[3], tok::r_paren, tok::getPunctuatorSpelling(tok::r_paren));
+
+  if (TS > Tokens.begin())
+    SeparateFromPrimaryToken(TS[-1], TS[0]);
+
+  return true;
 }
 
 void Preprocessor::EnterSubmodule(Module *M, SourceLocation ImportLoc,

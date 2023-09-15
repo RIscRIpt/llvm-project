@@ -283,6 +283,8 @@ public:
   void VisitDeclRefExpr(const DeclRefExpr *DRE);
   void VisitSYCLUniqueStableNameExpr(const SYCLUniqueStableNameExpr *E);
   void VisitPredefinedExpr(const PredefinedExpr *PE);
+  void VisitMSCompositeStringLiteral(const MSCompositeStringLiteral *E);
+  void VisitMSCastStringExpr(const MSCastStringExpr *E);
   void VisitUnaryOperator(const UnaryOperator *UO);
   void VisitBinaryOperator(const BinaryOperator *BO);
   void VisitCompoundAssignOperator(const CompoundAssignOperator *CAO);

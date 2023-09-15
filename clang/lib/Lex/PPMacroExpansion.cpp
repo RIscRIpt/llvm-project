@@ -361,9 +361,11 @@ void Preprocessor::RegisterBuiltinMacros() {
   if (getLangOpts().MicrosoftExt) {
     Ident__identifier = RegisterBuiltinMacro(*this, "__identifier");
     Ident__pragma = RegisterBuiltinMacro(*this, "__pragma");
+    Ident__FSTREXP = RegisterBuiltinMacro(*this, "__FSTREXP");
   } else {
     Ident__identifier = nullptr;
     Ident__pragma = nullptr;
+    Ident__FSTREXP = nullptr;
   }
 
   // Clang Extensions.
@@ -1905,6 +1907,9 @@ void Preprocessor::ExpandBuiltinMacro(Token &Tok) {
       Diag(LParenLoc, diag::note_matching) << tok::l_paren;
     }
     return;
+  } else if (II == Ident__FSTREXP) {
+    // __FSTREXP expands to nothing
+    return Lex(Tok);
   } else if (II == Ident__is_target_arch) {
     EvaluateFeatureLikeBuiltinMacro(
         OS, Tok, II, *this, false,

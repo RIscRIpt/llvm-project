@@ -790,10 +790,12 @@ class CastExpressionIdValidator final : public CorrectionCandidateCallback {
 ///         '__func__'        [C99 6.4.2.2]
 /// [GNU]   '__FUNCTION__'
 /// [MS]    '__FUNCDNAME__'
-/// [MS]    'L__FUNCTION__'
 /// [MS]    '__FUNCSIG__'
-/// [MS]    'L__FUNCSIG__'
 /// [GNU]   '__PRETTY_FUNCTION__'
+/// [MS]    '__lPREFIX' '(' string-literal-like ')'
+/// [MS]    '__LPREFIX' '(' string-literal-like ')'
+/// [MS]    '__uPREFIX' '(' string-literal-like ')'
+/// [MS]    '__UPREFIX' '(' string-literal-like ')'
 /// [GNU]   '(' compound-statement ')'
 /// [GNU]   '__builtin_va_arg' '(' assignment-expression ',' type-name ')'
 /// [GNU]   '__builtin_offsetof' '(' type-name ',' offsetof-member-designator')'
@@ -1316,8 +1318,6 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw___FUNCTION__:   // primary-expression: __FUNCTION__ [GNU]
   case tok::kw___FUNCDNAME__:   // primary-expression: __FUNCDNAME__ [MS]
   case tok::kw___FUNCSIG__:     // primary-expression: __FUNCSIG__ [MS]
-  case tok::kw_L__FUNCTION__:   // primary-expression: L__FUNCTION__ [MS]
-  case tok::kw_L__FUNCSIG__:    // primary-expression: L__FUNCSIG__ [MS]
   case tok::kw___PRETTY_FUNCTION__:  // primary-expression: __P..Y_F..N__ [GNU]
     // Function local predefined macros are represented by PredefinedExpr except
     // when Microsoft extensions are enabled and one of these macros is adjacent
@@ -1330,6 +1330,11 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
       break;
     }
     [[fallthrough]]; // treat MS function local macros as concatenable strings
+  case tok::kw___lPREFIX:
+  case tok::kw___LPREFIX:
+  case tok::kw___uPREFIX:
+  case tok::kw___UPREFIX:
+    [[fallthrough]];           // MS Cast String Expressions are concatenable
   case tok::string_literal:    // primary-expression: string-literal
   case tok::wide_string_literal:
   case tok::utf8_string_literal:
@@ -3323,6 +3328,90 @@ Parser::ParseCompoundLiteralExpression(ParsedType Ty,
   return Result;
 }
 
+ExprResult Parser::ParseMSCompositeStringLiteral(bool AllowUserDefinedLiteral,
+                                                 bool Unevaluated) {
+  assert(tokenIsLikeStringLiteral(Tok, getLangOpts()) &&
+         "Not a string-literal-like token!");
+
+  SmallVector<Expr *, 4> Literals;
+  SmallVector<Token, 4> StringToks;
+
+  do {
+    if (isFunctionLocalStringLiteralMacro(Tok.getKind(), getLangOpts())) {
+      if (auto E = Actions.ActOnPredefinedExpr(Tok.getLocation(), Tok.getKind()); !E.isInvalid())
+        Literals.emplace_back(E.get());
+      ConsumeToken();
+    } else if (isMicrosoftCastStringMacro(Tok.getKind(), getLangOpts())) {
+      if (auto E = ParseMicrosoftCastStringExpression(); !E.isInvalid())
+        Literals.emplace_back(E.get());
+    } else {
+      StringToks.emplace_back(Tok);
+      ConsumeStringToken();
+      // String concatenation of consecutive literals.
+      // Note: We have consumed a token above, so Tok now contains the next token.
+      if (!tok::isStringLiteral(Tok.getKind())) {
+        if (auto E = BuildStringLiteralExpression(StringToks, AllowUserDefinedLiteral, Unevaluated); !E.isInvalid())
+          Literals.emplace_back(E.get());
+        StringToks.clear();
+      }
+    }
+  } while (tokenIsLikeStringLiteral(Tok, getLangOpts()));
+
+  if (Literals.empty())
+    return ExprError();
+
+  // Avoid creating unneeded AST nestedness: just return the only literal.
+  if (Literals.size() == 1)
+    return Literals[0];
+
+  return Actions.BuildMSCompositeStringLiteral(Literals);
+}
+
+ExprResult Parser::ParseMicrosoftCastStringExpression() {
+  assert(isMicrosoftCastStringMacro(Tok.getKind(), getLangOpts()));
+
+  Token StrTok;
+  StrTok.startToken();
+
+  auto PrefixKind = Tok.getKind();
+  QualType CastType = Actions.getASTContext().CharTy;
+  switch (Tok.getKind()) {
+  case tok::kw___LPREFIX:
+    CastType = Actions.getASTContext().WCharTy;
+    break;
+  case tok::kw___lPREFIX:
+    CastType = Actions.getASTContext().Char8Ty;
+    break;
+  case tok::kw___uPREFIX:
+    CastType = Actions.getASTContext().Char16Ty;
+    break;
+  case tok::kw___UPREFIX:
+    CastType = Actions.getASTContext().Char32Ty;
+    break;
+  default:
+    llvm_unreachable("unexpected token kind");
+  }
+  ConsumeToken();
+
+  BalancedDelimiterTracker Parens(*this, tok::l_paren);
+  if (Parens.expectAndConsume(diag::err_expected_lparen_after,
+                              tok::getKeywordSpelling(PrefixKind))) {
+    return ExprError();
+  }
+
+  // Review question: are we okay with recursion here?
+  auto StringExpr = ParseMSCompositeStringLiteral(true, true);
+  if (!Parens.consumeClose()) {
+    return ExprError();
+  }
+
+  if (StringExpr.isInvalid()) {
+    return ExprError();
+  }
+
+  return Actions.BuildMSCastStringExpr(StringExpr.get(), CastType);
+}
+
 /// ParseStringLiteralExpression - This handles the various token types that
 /// form string literals, and also handles string concatenation [C99 5.1.1.2,
 /// translation phase #6].
@@ -3343,19 +3432,28 @@ ExprResult Parser::ParseUnevaluatedStringLiteralExpression() {
 
 ExprResult Parser::ParseStringLiteralExpression(bool AllowUserDefinedLiteral,
                                                 bool Unevaluated) {
-  assert(tokenIsLikeStringLiteral(Tok, getLangOpts()) &&
-         "Not a string-literal-like token!");
+  if (getLangOpts().MicrosoftExt)
+    return ParseMSCompositeStringLiteral(AllowUserDefinedLiteral, Unevaluated);
+
+  assert(tok::isStringLiteral(Tok.getKind()) && "Not a string-literal token!");
 
   // String concatenation.
   // Note: some keywords like __FUNCTION__ are not considered to be strings
   // for concatenation purposes, unless Microsoft extensions are enabled.
   SmallVector<Token, 4> StringToks;
-
   do {
-    StringToks.push_back(Tok);
-    ConsumeAnyToken();
-  } while (tokenIsLikeStringLiteral(Tok, getLangOpts()));
+    StringToks.emplace_back(Tok);
+    ConsumeStringToken();
+  } while (tok::isStringLiteral(Tok.getKind()));
 
+  return BuildStringLiteralExpression(StringToks, AllowUserDefinedLiteral,
+                                      Unevaluated);
+}
+
+ExprResult
+Parser::BuildStringLiteralExpression(SmallVectorImpl<Token> &StringToks,
+                                     bool AllowUserDefinedLiteral,
+                                     bool Unevaluated) {
   if (Unevaluated) {
     assert(!AllowUserDefinedLiteral && "UDL are always evaluated");
     return Actions.ActOnUnevaluatedStringLiteral(StringToks);

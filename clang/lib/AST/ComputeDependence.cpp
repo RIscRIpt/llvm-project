@@ -707,6 +707,14 @@ ExprDependence clang::computeDependence(GenericSelectionExpr *E,
               ~ExprDependence::UnexpandedPack);
 }
 
+ExprDependence clang::computeDependence(MSCompositeStringLiteral *E) {
+  return ExprDependence::All; // TODO
+}
+
+ExprDependence clang::computeDependence(MSCastStringExpr *E) {
+  return ExprDependence::All; // TODO
+}
+
 ExprDependence clang::computeDependence(DesignatedInitExpr *E) {
   auto Deps = E->getInit()->getDependence();
   for (const auto &D : E->designators()) {

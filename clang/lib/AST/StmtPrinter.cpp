@@ -1264,7 +1264,15 @@ void StmtPrinter::VisitSYCLUniqueStableNameExpr(
 }
 
 void StmtPrinter::VisitPredefinedExpr(PredefinedExpr *Node) {
-  OS << PredefinedExpr::getIdentKindName(Node->getIdentKind());
+  OS << Node->getIdentKindName();
+}
+
+void StmtPrinter::VisitMSCompositeStringLiteral(MSCompositeStringLiteral *E) {
+  // TODO
+}
+
+void StmtPrinter::VisitMSCastStringExpr(MSCastStringExpr *E) {
+  // TODO
 }
 
 void StmtPrinter::VisitCharacterLiteral(CharacterLiteral *Node) {

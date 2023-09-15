@@ -5875,10 +5875,10 @@ public:
                       SourceLocation LitEndLoc,
                       TemplateArgumentListInfo *ExplicitTemplateArgs = nullptr);
 
-  // ExpandFunctionLocalPredefinedMacros - Returns a new vector of Tokens,
-  // where Tokens representing function local predefined macros (such as
-  // __FUNCTION__) are replaced (expanded) with string-literal Tokens.
-  std::vector<Token> ExpandFunctionLocalPredefinedMacros(ArrayRef<Token> Toks);
+  // ExpandFunctionLocalPredefinedMacro - In Microsoft compatible mode this
+  // method expands a given Token representing function local predefined macros
+  // (e.g.  __FUNCTION__) to string-literal token.
+  void ExpandFunctionLocalPredefinedMacro(Token &Tok);
 
   ExprResult BuildPredefinedExpr(SourceLocation Loc, PredefinedIdentKind IK);
   ExprResult ActOnPredefinedExpr(SourceLocation Loc, tok::TokenKind Kind);
@@ -5909,6 +5909,9 @@ public:
                                 Scope *UDLScope = nullptr);
 
   ExprResult ActOnUnevaluatedStringLiteral(ArrayRef<Token> StringToks);
+
+  ExprResult BuildMSCompositeStringLiteral(ArrayRef<Expr*> Literals);
+  ExprResult BuildMSCastStringExpr(Expr* StringExpr, QualType CastType);
 
   /// ControllingExprOrType is either an opaque pointer coming out of a
   /// ParsedType or an Expr *. FIXME: it'd be better to split this interface

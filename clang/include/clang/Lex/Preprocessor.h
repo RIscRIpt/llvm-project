@@ -158,6 +158,7 @@ class Preprocessor {
   IdentifierInfo *Ident__COUNTER__;                // __COUNTER__
   IdentifierInfo *Ident_Pragma, *Ident__pragma;    // _Pragma, __pragma
   IdentifierInfo *Ident__identifier;               // __identifier
+  IdentifierInfo *Ident__FSTREXP;                  // __FSTREXP
   IdentifierInfo *Ident__VA_ARGS__;                // __VA_ARGS__
   IdentifierInfo *Ident__VA_OPT__;                 // __VA_OPT__
   IdentifierInfo *Ident__has_feature;              // __has_feature
@@ -2219,6 +2220,21 @@ public:
   /// mode, this method handles updating the current state, returning the
   /// token on the next source line.
   void HandleMicrosoftCommentPaste(Token &Tok);
+
+  /// Expands function local string literal macro (e.g. __FUNCTION__) to
+  /// __FSTREXP followed by original macro.
+  /// Basically, prepends __FSTREXP in front of a given token.
+  void ExpandFunctionLocalMacro(SmallVectorImpl<Token> &TS, const Token &Tok);
+
+  /// In Microsoft-compatibility mode replaces macro paste of string literal
+  /// prefix (L, u8, u, U) and __FSTREXP followed by a function local macro,
+  /// e.g. __FUNCTION__, as shown below:
+  ///         L##__FSTREXP   __FUNCTION__
+  ///         || |           |
+  ///         vv v           v
+  /// __LPREFIX( __FUNCTION__)
+  bool HandleMicrosoftFStrExpPaste(MutableArrayRef<Token> Tokens,
+                                   Token *FStrExpToken);
 
   //===--------------------------------------------------------------------===//
   // Preprocessor callback methods.  These are invoked by a lexer as various

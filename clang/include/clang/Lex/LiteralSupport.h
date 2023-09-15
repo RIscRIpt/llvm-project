@@ -36,6 +36,9 @@ class LangOptions;
 /// Copy characters from Input to Buf, expanding any UCNs.
 void expandUCNs(SmallVectorImpl<char> &Buf, StringRef Input);
 
+/// Return true if the token is either __LPREFIX, __
+bool isMicrosoftCastStringMacro(tok::TokenKind K, const LangOptions &LO);
+
 /// Return true if the token corresponds to a function local predefined macro,
 /// which expands to a string literal, that can be concatenated with other
 /// string literals (only in Microsoft mode).

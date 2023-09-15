@@ -5557,7 +5557,9 @@ recurse:
     break;
   }
 
-  case Expr::StringLiteralClass: {
+  case Expr::StringLiteralClass:
+  case Expr::MSCompositeStringLiteralClass:
+  case Expr::MSCastStringExprClass: {
     // <expr-primary>
     // Revised proposal from David Vandervoorde, 2010.07.15.
     Out << 'L';

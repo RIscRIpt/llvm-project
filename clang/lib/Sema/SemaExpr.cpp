@@ -1906,10 +1906,6 @@ static PredefinedIdentKind getPredefinedExprKind(tok::TokenKind Kind) {
     return PredefinedIdentKind::FuncDName; // [MS]
   case tok::kw___FUNCSIG__:
     return PredefinedIdentKind::FuncSig; // [MS]
-  case tok::kw_L__FUNCTION__:
-    return PredefinedIdentKind::LFunction; // [MS]
-  case tok::kw_L__FUNCSIG__:
-    return PredefinedIdentKind::LFuncSig; // [MS]
   case tok::kw___PRETTY_FUNCTION__:
     return PredefinedIdentKind::PrettyFunction; // [GNU]
   }
@@ -1964,11 +1960,6 @@ static ExprResult BuildCookedLiteralOperatorCall(Sema &S, Scope *Scope,
 }
 
 ExprResult Sema::ActOnUnevaluatedStringLiteral(ArrayRef<Token> StringToks) {
-  // StringToks needs backing storage as it doesn't hold array elements itself
-  std::vector<Token> ExpandedToks;
-  if (getLangOpts().MicrosoftExt)
-    StringToks = ExpandedToks = ExpandFunctionLocalPredefinedMacros(StringToks);
-
   StringLiteralParser Literal(StringToks, PP,
                               StringLiteralEvalMethod::Unevaluated);
   if (Literal.hadError)
@@ -1992,55 +1983,6 @@ ExprResult Sema::ActOnUnevaluatedStringLiteral(ArrayRef<Token> StringToks) {
   return Lit;
 }
 
-std::vector<Token>
-Sema::ExpandFunctionLocalPredefinedMacros(ArrayRef<Token> Toks) {
-  // MSVC treats some predefined identifiers (e.g. __FUNCTION__) as function
-  // local macros that expand to string literals that may be concatenated.
-  // These macros are expanded here (in Sema), because StringLiteralParser
-  // (in Lex) doesn't know the enclosing function (because it hasn't been
-  // parsed yet).
-  assert(getLangOpts().MicrosoftExt);
-
-  // Note: Although function local macros are defined only inside functions,
-  // we ensure a valid `CurrentDecl` even outside of a function. This allows
-  // expansion of macros into empty string literals without additional checks.
-  Decl *CurrentDecl = getPredefinedExprDecl(CurContext);
-  if (!CurrentDecl)
-    CurrentDecl = Context.getTranslationUnitDecl();
-
-  std::vector<Token> ExpandedToks;
-  ExpandedToks.reserve(Toks.size());
-  for (const Token &Tok : Toks) {
-    if (!isFunctionLocalStringLiteralMacro(Tok.getKind(), getLangOpts())) {
-      assert(tok::isStringLiteral(Tok.getKind()));
-      ExpandedToks.emplace_back(Tok);
-      continue;
-    }
-    if (isa<TranslationUnitDecl>(CurrentDecl))
-      Diag(Tok.getLocation(), diag::ext_predef_outside_function);
-    // Stringify predefined expression
-    Diag(Tok.getLocation(), diag::ext_string_literal_from_predefined)
-        << Tok.getKind();
-    SmallString<64> Str;
-    llvm::raw_svector_ostream OS(Str);
-    Token &Exp = ExpandedToks.emplace_back();
-    Exp.startToken();
-    if (Tok.getKind() == tok::kw_L__FUNCTION__ ||
-        Tok.getKind() == tok::kw_L__FUNCSIG__) {
-      OS << 'L';
-      Exp.setKind(tok::wide_string_literal);
-    } else {
-      Exp.setKind(tok::string_literal);
-    }
-    OS << '"'
-       << Lexer::Stringify(PredefinedExpr::ComputeName(
-              getPredefinedExprKind(Tok.getKind()), CurrentDecl))
-       << '"';
-    PP.CreateString(OS.str(), Exp, Tok.getLocation(), Tok.getEndLoc());
-  }
-  return ExpandedToks;
-}
-
 /// ActOnStringLiteral - The specified tokens were lexed as pasted string
 /// fragments (e.g. "foo" "bar" L"baz").  The result string has to handle string
 /// concatenation ([C99 5.1.1.2, translation phase #6]), so it may come from
@@ -2050,11 +1992,6 @@ Sema::ExpandFunctionLocalPredefinedMacros(ArrayRef<Token> Toks) {
 ExprResult
 Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
   assert(!StringToks.empty() && "Must have at least one string!");
-
-  // StringToks needs backing storage as it doesn't hold array elements itself
-  std::vector<Token> ExpandedToks;
-  if (getLangOpts().MicrosoftExt)
-    StringToks = ExpandedToks = ExpandFunctionLocalPredefinedMacros(StringToks);
 
   StringLiteralParser Literal(StringToks, PP);
   if (Literal.hadError)
@@ -2193,6 +2130,15 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
     return ExprError();
   }
   llvm_unreachable("unexpected literal operator lookup result");
+}
+
+ExprResult Sema::BuildMSCompositeStringLiteral(ArrayRef<Expr*> Literals) {
+  // TODO: correct type
+  return MSCompositeStringLiteral::Create(Context, Context.CharTy, Literals);
+}
+
+ExprResult Sema::BuildMSCastStringExpr(Expr* StringExpr, QualType CastType) {
+  return MSCastStringExpr::Create(Context, CastType, StringExpr);
 }
 
 DeclRefExpr *
@@ -3713,18 +3659,6 @@ ExprResult Sema::BuildDeclarationNameExpr(
   return E;
 }
 
-static void ConvertUTF8ToWideString(unsigned CharByteWidth, StringRef Source,
-                                    SmallString<32> &Target) {
-  Target.resize(CharByteWidth * (Source.size() + 1));
-  char *ResultPtr = &Target[0];
-  const llvm::UTF8 *ErrorPtr;
-  bool success =
-      llvm::ConvertUTF8toWide(CharByteWidth, Source, ResultPtr, ErrorPtr);
-  (void)success;
-  assert(success);
-  Target.resize(ResultPtr - &Target[0]);
-}
-
 ExprResult Sema::BuildPredefinedExpr(SourceLocation Loc,
                                      PredefinedIdentKind IK) {
   Decl *currentDecl = getPredefinedExprDecl(CurContext);
@@ -3733,37 +3667,16 @@ ExprResult Sema::BuildPredefinedExpr(SourceLocation Loc,
     currentDecl = Context.getTranslationUnitDecl();
   }
 
-  QualType ResTy;
+  QualType ResTy = Context.DependentTy;
   StringLiteral *SL = nullptr;
-  if (cast<DeclContext>(currentDecl)->isDependentContext())
-    ResTy = Context.DependentTy;
-  else {
+  if (!cast<DeclContext>(currentDecl)->isDependentContext()) {
     // Pre-defined identifiers are of type char[x], where x is the length of
     // the string.
     auto Str = PredefinedExpr::ComputeName(IK, currentDecl);
-    unsigned Length = Str.length();
-
-    llvm::APInt LengthI(32, Length + 1);
-    if (IK == PredefinedIdentKind::LFunction ||
-        IK == PredefinedIdentKind::LFuncSig) {
-      ResTy =
-          Context.adjustStringLiteralBaseType(Context.WideCharTy.withConst());
-      SmallString<32> RawChars;
-      ConvertUTF8ToWideString(Context.getTypeSizeInChars(ResTy).getQuantity(),
-                              Str, RawChars);
-      ResTy = Context.getConstantArrayType(ResTy, LengthI, nullptr,
-                                           ArraySizeModifier::Normal,
-                                           /*IndexTypeQuals*/ 0);
-      SL = StringLiteral::Create(Context, RawChars, StringLiteralKind::Wide,
-                                 /*Pascal*/ false, ResTy, Loc);
-    } else {
-      ResTy = Context.adjustStringLiteralBaseType(Context.CharTy.withConst());
-      ResTy = Context.getConstantArrayType(ResTy, LengthI, nullptr,
-                                           ArraySizeModifier::Normal,
-                                           /*IndexTypeQuals*/ 0);
-      SL = StringLiteral::Create(Context, Str, StringLiteralKind::Ordinary,
-                                 /*Pascal*/ false, ResTy, Loc);
-    }
+    ResTy =
+      Context.getStringLiteralArrayType(Context.CharTy, Str.length());
+    SL = StringLiteral::Create(Context, Str, StringLiteralKind::Ordinary,
+                               /*Pascal*/ false, ResTy, Loc);
   }
 
   return PredefinedExpr::Create(Context, Loc, ResTy, IK, LangOpts.MicrosoftExt,

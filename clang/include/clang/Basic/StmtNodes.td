@@ -214,6 +214,8 @@ def SEHExceptStmt : StmtNode<Stmt>;
 def SEHFinallyStmt : StmtNode<Stmt>;
 def SEHLeaveStmt : StmtNode<Stmt>;
 def MSDependentExistsStmt : StmtNode<Stmt>;
+def MSCastStringExpr : StmtNode<Expr>;
+def MSCompositeStringLiteral : StmtNode<Expr>;
 
 // OpenCL Extensions.
 def AsTypeExpr : StmtNode<Expr>;

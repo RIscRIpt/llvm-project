@@ -1812,7 +1812,18 @@ public:
   ExprResult ParseUnevaluatedStringLiteralExpression();
 
 private:
+  ExprResult ParseMSCompositeStringLiteral(bool AllowUserDefinedLiteral,
+                                           bool Unevaluated);
+
+  /// ParseMicrosoftCastStringExpression - parses current __LPREFIX-like
+  /// expression and replaces current Tok with a resulting string literal.
+  ExprResult ParseMicrosoftCastStringExpression();
+
   ExprResult ParseStringLiteralExpression(bool AllowUserDefinedLiteral,
+                                          bool Unevaluated);
+
+  ExprResult BuildStringLiteralExpression(SmallVectorImpl<Token> &StringToks,
+                                          bool AllowUserDefinedLiteral,
                                           bool Unevaluated);
 
   ExprResult ParseExpressionWithLeadingAt(SourceLocation AtLoc);

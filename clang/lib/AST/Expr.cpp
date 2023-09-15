@@ -648,14 +648,10 @@ StringRef PredefinedExpr::getIdentKindName(PredefinedIdentKind IK) {
     return "__FUNCTION__";
   case PredefinedIdentKind::FuncDName:
     return "__FUNCDNAME__";
-  case PredefinedIdentKind::LFunction:
-    return "L__FUNCTION__";
   case PredefinedIdentKind::PrettyFunction:
     return "__PRETTY_FUNCTION__";
   case PredefinedIdentKind::FuncSig:
     return "__FUNCSIG__";
-  case PredefinedIdentKind::LFuncSig:
-    return "L__FUNCSIG__";
   case PredefinedIdentKind::PrettyFunctionNoVirtual:
     break;
   }
@@ -715,8 +711,7 @@ std::string PredefinedExpr::ComputeName(PredefinedIdentKind IK,
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(CurrentDecl)) {
     if (IK != PredefinedIdentKind::PrettyFunction &&
         IK != PredefinedIdentKind::PrettyFunctionNoVirtual &&
-        IK != PredefinedIdentKind::FuncSig &&
-        IK != PredefinedIdentKind::LFuncSig)
+        IK != PredefinedIdentKind::FuncSig)
       return FD->getNameAsString();
 
     SmallString<256> Name;
@@ -755,8 +750,7 @@ std::string PredefinedExpr::ComputeName(PredefinedIdentKind IK,
     if (FD->hasWrittenPrototype())
       FT = dyn_cast<FunctionProtoType>(AFT);
 
-    if (IK == PredefinedIdentKind::FuncSig ||
-        IK == PredefinedIdentKind::LFuncSig) {
+    if (IK == PredefinedIdentKind::FuncSig) {
       switch (AFT->getCallConv()) {
       case CC_C: POut << "__cdecl "; break;
       case CC_X86StdCall: POut << "__stdcall "; break;
@@ -782,7 +776,6 @@ std::string PredefinedExpr::ComputeName(PredefinedIdentKind IK,
         if (FD->getNumParams()) POut << ", ";
         POut << "...";
       } else if ((IK == PredefinedIdentKind::FuncSig ||
-                  IK == PredefinedIdentKind::LFuncSig ||
                   !Context.getLangOpts().CPlusPlus) &&
                  !Decl->getNumParams()) {
         POut << "void";
@@ -3566,6 +3559,8 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case FloatingLiteralClass:
   case ImaginaryLiteralClass:
   case StringLiteralClass:
+  case MSCompositeStringLiteralClass:
+  case MSCastStringExprClass:
   case CharacterLiteralClass:
   case OffsetOfExprClass:
   case ImplicitValueInitExprClass:
@@ -4897,6 +4892,72 @@ Stmt::const_child_range UnaryExprOrTypeTraitExpr::children() const {
     return const_child_range(const_child_iterator(), const_child_iterator());
   }
   return const_child_range(&Argument.Ex, &Argument.Ex + 1);
+}
+
+//===----------------------------------------------------------------------===//
+// Microsoft Extensions
+//===----------------------------------------------------------------------===//
+
+static
+std::pair<QualType, StringLiteral*>
+MaterializeString(ASTContext& Ctx, QualType CharTy, ArrayRef<Expr*> Exprs) {
+  // TODO: Simulate incorrect casting
+
+  SmallString<256> Buffer;
+  for (const auto* E : Exprs) {
+    const StringLiteral* StrLit;
+    if (StrLit = llvm::dyn_cast<StringLiteral>(E))
+      ;
+    else if (const auto* PE = llvm::dyn_cast<PredefinedExpr>(E))
+      StrLit = PE->getFunctionName();
+    else if (const auto* CSE = llvm::dyn_cast<MSCastStringExpr>(E))
+      StrLit = CSE->getStringLiteral();
+    else if (const auto* CSL = llvm::dyn_cast<MSCompositeStringLiteral>(E))
+      StrLit = CSL->getStringLiteral();
+    else
+      llvm_unreachable("unexpected Expr kind");
+
+    Buffer.append(StrLit->getString());
+  }
+
+  auto String = Buffer.str();
+  QualType StrTy = Ctx.getStringLiteralArrayType(CharTy, String.size());
+  auto* SL = StringLiteral::Create(Ctx, String, StringLiteralKind::Ordinary, false, StrTy, Exprs.front()->getExprLoc());
+
+  return { StrTy, SL };
+}
+
+MSCompositeStringLiteral::MSCompositeStringLiteral(ASTContext &Ctx, QualType Ty,
+                                                   ArrayRef<Expr *> SubExprs,
+                                                   StringLiteral* SL)
+    : Expr(MSCompositeStringLiteralClass, Ty, VK_LValue, OK_Ordinary) {
+  MSCompositeStringLiteralBits.NumExprs = SubExprs.size();
+  llvm::copy(SubExprs, getTrailingObjects<Expr *>());
+  *getTrailingObjects<StringLiteral*>() = SL;
+  setDependence(computeDependence(this));
+}
+
+MSCompositeStringLiteral* MSCompositeStringLiteral::Create(ASTContext &Ctx, QualType Ty, ArrayRef<Expr *> SubExprs) {
+  void *Mem = Ctx.Allocate(totalSizeToAlloc<Expr *, StringLiteral*>(SubExprs.size(), 1),
+                           alignof(MSCompositeStringLiteral));
+  auto [StrTy, SL] = MaterializeString(Ctx, Ty, SubExprs);
+  return new (Mem) MSCompositeStringLiteral(Ctx, StrTy, SubExprs, SL);
+}
+
+MSCastStringExpr::MSCastStringExpr(ASTContext &Ctx, QualType Ty,
+                                   Expr *SubExpr, StringLiteral* SL)
+    : Expr(MSCastStringExprClass, Ty, VK_LValue, OK_Ordinary) {
+  *getTrailingObjects<Expr *>() = SubExpr;
+  *getTrailingObjects<StringLiteral*>() = SL;
+  setDependence(computeDependence(this));
+}
+
+MSCastStringExpr *
+MSCastStringExpr::Create(ASTContext &Ctx, QualType Ty, Expr *SubExpr) {
+  void *Mem =
+      Ctx.Allocate(totalSizeToAlloc<Expr *, StringLiteral*>(1, 1), alignof(MSCastStringExpr));
+  auto [StrTy, SL] = MaterializeString(Ctx, Ty, { SubExpr });
+  return new (Mem) MSCastStringExpr(Ctx, StrTy, SubExpr, SL);
 }
 
 AtomicExpr::AtomicExpr(SourceLocation BLoc, ArrayRef<Expr *> args, QualType t,

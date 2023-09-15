@@ -1335,6 +1335,14 @@ void StmtProfiler::VisitPredefinedExpr(const PredefinedExpr *S) {
   ID.AddInteger(llvm::to_underlying(S->getIdentKind()));
 }
 
+void StmtProfiler::VisitMSCompositeStringLiteral(const MSCompositeStringLiteral *E) {
+  // TODO
+}
+
+void StmtProfiler::VisitMSCastStringExpr(const MSCastStringExpr *E) {
+  // TODO
+}
+
 void StmtProfiler::VisitIntegerLiteral(const IntegerLiteral *S) {
   VisitExpr(S);
   S->getValue().Profile(ID);

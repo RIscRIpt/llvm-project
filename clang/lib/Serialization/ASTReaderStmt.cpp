@@ -596,6 +596,14 @@ void ASTStmtReader::VisitPredefinedExpr(PredefinedExpr *E) {
     E->setFunctionName(cast<StringLiteral>(Record.readSubExpr()));
 }
 
+void ASTStmtReader::VisitMSCompositeStringLiteral(MSCompositeStringLiteral *E) {
+  // TODO
+}
+
+void ASTStmtReader::VisitMSCastStringExpr(MSCastStringExpr *E) {
+  // TODO
+}
+
 void ASTStmtReader::VisitDeclRefExpr(DeclRefExpr *E) {
   VisitExpr(E);
 

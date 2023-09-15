@@ -2636,6 +2636,22 @@ public:
     return getSema().BuildPredefinedExpr(Loc, IK);
   }
 
+  /// Build a new Microsoft composite string literal
+  ///
+  /// By default, performs semantic analysis to build the new expression.
+  /// Subclasses may override this routine to provide different behavior.
+  ExprResult RebuildMSCompositeStringLiteral(ArrayRef<Expr*> SubExprs) {
+    return getSema().BuildMSCompositeStringLiteral(SubExprs);
+  }
+
+  /// Build a new Microsoft cast string expression.
+  ///
+  /// By default, performs semantic analysis to build the new expression.
+  /// Subclasses may override this routine to provide different behavior.
+  ExprResult RebuildMSCastStringExpr(Expr* SubExpr, QualType CastType) {
+    return getSema().BuildMSCastStringExpr(SubExpr, CastType);
+  }
+
   /// Build a new expression that references a declaration.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -11060,6 +11076,24 @@ TreeTransform<Derived>::TransformPredefinedExpr(PredefinedExpr *E) {
 
   return getDerived().RebuildPredefinedExpr(E->getLocation(),
                                             E->getIdentKind());
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformMSCompositeStringLiteral(MSCompositeStringLiteral *E) {
+  if (!E->isTypeDependent())
+    return E;
+
+  return getDerived().RebuildMSCompositeStringLiteral(E->getSubExprs());
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformMSCastStringExpr(MSCastStringExpr *E) {
+  if (!E->isTypeDependent())
+    return E;
+
+  return getDerived().RebuildMSCastStringExpr(E->getSubExpr(), E->getType());
 }
 
 template<typename Derived>

@@ -439,17 +439,23 @@ void clang::expandUCNs(SmallVectorImpl<char> &Buf, StringRef Input) {
   }
 }
 
+bool clang::isMicrosoftCastStringMacro(tok::TokenKind K,
+                                        const LangOptions &LO) {
+  return K == tok::kw___lPREFIX || K == tok::kw___LPREFIX ||
+         K == tok::kw___uPREFIX || K == tok::kw___UPREFIX;
+}
+
 bool clang::isFunctionLocalStringLiteralMacro(tok::TokenKind K,
                                               const LangOptions &LO) {
   return LO.MicrosoftExt &&
-         (K == tok::kw___FUNCTION__ || K == tok::kw_L__FUNCTION__ ||
-          K == tok::kw___FUNCSIG__ || K == tok::kw_L__FUNCSIG__ ||
-          K == tok::kw___FUNCDNAME__);
+         (K == tok::kw___FUNCTION__ || K == tok::kw___FUNCDNAME__ ||
+          K == tok::kw___FUNCSIG__);
 }
 
 bool clang::tokenIsLikeStringLiteral(const Token &Tok, const LangOptions &LO) {
   return tok::isStringLiteral(Tok.getKind()) ||
-         isFunctionLocalStringLiteralMacro(Tok.getKind(), LO);
+         isFunctionLocalStringLiteralMacro(Tok.getKind(), LO) ||
+         isMicrosoftCastStringMacro(Tok.getKind(), LO);
 }
 
 static bool ProcessNumericUCNEscape(const char *ThisTokBegin,

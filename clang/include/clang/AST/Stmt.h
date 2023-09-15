@@ -408,7 +408,7 @@ protected:
     unsigned : NumExprBits;
 
     LLVM_PREFERRED_TYPE(PredefinedIdentKind)
-    unsigned Kind : 4;
+    unsigned Kind : 3;
 
     /// True if this PredefinedExpr has a trailing "StringLiteral *"
     /// for the predefined identifier.
@@ -1175,6 +1175,17 @@ protected:
     unsigned ShouldCopy : 1;
   };
 
+  //===--- Microsoft Extensions bitfields classes ---===//
+
+  class MSCompositeStringLiteralBitfields {
+    friend class MSCompositeStringLiteral;
+
+    unsigned : NumExprBits;
+
+    /// The number of expressions
+    unsigned NumExprs;
+  };
+
   //===--- Clang Extensions bitfields classes ---===//
 
   class OpaqueValueExprBitfields {
@@ -1266,6 +1277,9 @@ protected:
 
     // Obj-C Expressions
     ObjCIndirectCopyRestoreExprBitfields ObjCIndirectCopyRestoreExprBits;
+
+    // Microsoft Extensions
+    MSCompositeStringLiteralBitfields MSCompositeStringLiteralBits;
 
     // Clang Extensions
     OpaqueValueExprBitfields OpaqueValueExprBits;

@@ -1866,6 +1866,11 @@ public:
   unsigned getLength() const { return *getTrailingObjects<unsigned>(); }
   unsigned getCharByteWidth() const { return StringLiteralBits.CharByteWidth; }
 
+  void setKind(StringLiteralKind K) {
+    StringLiteralBits.Kind = llvm::to_underlying(K);
+    assert(StringLiteralBits.Kind == llvm::to_underlying(K) && "not enough bits to set StringLiteralKind");
+  }
+
   StringLiteralKind getKind() const {
     return static_cast<StringLiteralKind>(StringLiteralBits.Kind);
   }
@@ -1946,10 +1951,8 @@ public:
 enum class PredefinedIdentKind {
   Func,
   Function,
-  LFunction, // Same as Function, but as wide string.
   FuncDName,
   FuncSig,
-  LFuncSig, // Same as FuncSig, but as wide string
   PrettyFunction,
   /// The same as PrettyFunction, except that the
   /// 'virtual' keyword is omitted for virtual member functions.
@@ -6066,6 +6069,121 @@ public:
     return const_child_range(getTrailingObjects<Stmt *>(),
                              getTrailingObjects<Stmt *>() +
                                  numTrailingObjects(OverloadToken<Stmt *>()));
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// Microsoft Extensions
+//===----------------------------------------------------------------------===//
+
+/// MSCompositeStringLiteral - [ StringLiteral, PredefinedExpr,
+/// MSCastStringExpr ]
+class MSCompositeStringLiteral final
+    : public Expr,
+      private llvm::TrailingObjects<MSCompositeStringLiteral, Expr*, StringLiteral*> {
+  friend class ASTStmtReader;
+  friend TrailingObjects;
+
+private:
+  MSCompositeStringLiteral(ASTContext &Ctx, QualType Ty, ArrayRef<Expr *> SubExprs, StringLiteral* SL);
+
+  size_t numTrailingObjects(OverloadToken<Expr *>) const { return getNumSubExprs(); }
+
+public:
+  static MSCompositeStringLiteral *Create(ASTContext &Ctx,
+          QualType Ty, ArrayRef<Expr *> SubExprs);
+
+  /// Return the number of expressions in this Microsoft Composite String
+  /// Literal.
+  unsigned getNumSubExprs() const { return MSCompositeStringLiteralBits.NumExprs; }
+
+  Expr *getSubExpr(unsigned Idx) {
+    assert(Idx < getNumSubExprs() && "Initializer access out of range!");
+    return getSubExprs()[Idx];
+  }
+
+  const Expr *getSubExpr(unsigned Idx) const {
+    return const_cast<MSCompositeStringLiteral *>(this)->getSubExpr(Idx);
+  }
+
+  ArrayRef<Expr*> getSubExprs() {
+    return ArrayRef<Expr*>(reinterpret_cast<Expr **>(getTrailingObjects<Expr *>()), getNumSubExprs());
+  }
+  ArrayRef<const Expr*> getSubExprs() const {
+    return ArrayRef<const Expr*>(reinterpret_cast<const Expr* const*>(getTrailingObjects<Expr *>()), getNumSubExprs());
+  }
+
+  StringLiteral *getStringLiteral() {
+    return *getTrailingObjects<StringLiteral*>();
+  }
+  const StringLiteral *getStringLiteral() const {
+    return *getTrailingObjects<StringLiteral*>();
+  }
+
+  SourceLocation getLocation() const { return getSubExpr(0)->getExprLoc(); }
+  SourceLocation getBeginLoc() const { return getLocation(); }
+  SourceLocation getEndLoc() const { return /*TODO*/ SourceLocation(); }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == MSCompositeStringLiteralClass;
+  }
+
+  child_range children() {
+    auto cs = reinterpret_cast<Stmt **>(getTrailingObjects<Expr *>());
+    return child_range(cs, cs + getNumSubExprs());
+  }
+
+  const_child_range children() const {
+    auto cs = const_cast<MSCompositeStringLiteral*>(this)->children();
+    return const_child_range(cs.begin(), cs.end());
+  }
+};
+
+/// MSCastStringExpr - __LPREFIX( MSCompositeStringLiteral, StringLiteral,
+/// PredefinedExpr, MSCastStringExpr )
+class MSCastStringExpr final
+    : public Expr,
+      private llvm::TrailingObjects<MSCastStringExpr, Expr *, StringLiteral*> {
+  friend class ASTStmtReader;
+  friend TrailingObjects;
+
+  SourceLocation Loc, RParenLoc;
+
+private:
+  MSCastStringExpr(ASTContext &Ctx, QualType Ty, Expr *SubExpr, StringLiteral* SL);
+
+  size_t numTrailingObjects(OverloadToken<Expr *>) const { return 1; }
+
+public:
+  static MSCastStringExpr *Create(ASTContext &Ctx, QualType Ty, Expr *SubExpr);
+
+  Expr *getSubExpr() { return *getTrailingObjects<Expr *>(); }
+  const Expr *getSubExpr() const { return *getTrailingObjects<Expr *>(); }
+
+  StringLiteral *getStringLiteral() {
+    return *getTrailingObjects<StringLiteral*>();
+  }
+  const StringLiteral *getStringLiteral() const {
+    return *getTrailingObjects<StringLiteral*>();
+  }
+
+  SourceLocation getLocation() const { return Loc; }
+  SourceLocation getBeginLoc() const { return getLocation(); }
+  SourceLocation getEndLoc() const { return RParenLoc; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == MSCastStringExprClass;
+  }
+
+  // Iterators
+  child_range children() {
+    auto cs = reinterpret_cast<Stmt **>(getTrailingObjects<Expr *>());
+    return child_range(cs, cs + 1);
+  }
+
+  const_child_range children() const {
+    auto cs = const_cast<MSCastStringExpr*>(this)->children();
+    return const_child_range(cs.begin(), cs.end());
   }
 };
 

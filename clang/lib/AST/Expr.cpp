@@ -4887,7 +4887,7 @@ MaterializeString(ASTContext& Ctx, QualType CharTy, ArrayRef<Expr*> Exprs) {
     else
       llvm_unreachable("unexpected Expr kind");
 
-    Buffer.append(StrLit->getString());
+    Buffer.append(StrLit->getBytes());
   }
 
   auto String = Buffer.str();

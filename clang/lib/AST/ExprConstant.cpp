@@ -3418,21 +3418,23 @@ static unsigned getBaseIndex(const CXXRecordDecl *Derived,
 /// Extract the value of a character from a string literal.
 static APSInt extractStringLiteralCharacter(EvalInfo &Info, const Expr *Lit,
                                             uint64_t Index) {
-  assert(!isa<SourceLocExpr>(Lit) &&
-         "SourceLocExpr should have already been converted to a StringLiteral");
-
+  // Review question: is this still relevant?
+  // In all git history I saw only `FIXME Support MakeStringConstant`,
+  // and no other mentions. What is this?
   // FIXME: Support MakeStringConstant
-  if (const auto *ObjCEnc = dyn_cast<ObjCEncodeExpr>(Lit)) {
-    std::string Str;
-    Info.Ctx.getObjCEncodingForType(ObjCEnc->getEncodedType(), Str);
-    assert(Index <= Str.size() && "Index too large");
-    return APSInt::getUnsigned(Str.c_str()[Index]);
-  }
 
-  // TODO: handle my Microsoft Extensions
-  if (auto PE = dyn_cast<PredefinedExpr>(Lit))
-    Lit = PE->getFunctionName();
-  const StringLiteral *S = cast<StringLiteral>(Lit);
+  const StringLiteral *S;
+  if (S = llvm::dyn_cast<StringLiteral>(Lit))
+    ;
+  else if (const auto* PE = llvm::dyn_cast<PredefinedExpr>(Lit))
+    S = PE->getFunctionName();
+  else if (const auto* CSE = llvm::dyn_cast<MSCastStringExpr>(Lit))
+    S = CSE->getStringLiteral();
+  else if (const auto* CSL = llvm::dyn_cast<MSCompositeStringLiteral>(Lit))
+    S = CSL->getStringLiteral();
+  else
+    llvm_unreachable("unexpected Expr kind");
+
   const ConstantArrayType *CAT =
       Info.Ctx.getAsConstantArrayType(S->getType());
   assert(CAT && "string literal isn't an array");
@@ -3452,7 +3454,6 @@ static APSInt extractStringLiteralCharacter(EvalInfo &Info, const Expr *Lit,
 static void expandStringLiteral(EvalInfo &Info, const StringLiteral *S,
                                 APValue &Result,
                                 QualType AllocType = QualType()) {
-  // TODO: maybe handle my Microsoft extensions
   const ConstantArrayType *CAT = Info.Ctx.getAsConstantArrayType(
       AllocType.isNull() ? S->getType() : AllocType);
   assert(CAT && "string literal isn't an array");
@@ -4337,7 +4338,7 @@ handleLValueToRValueConversion(EvalInfo &Info, const Expr *Conv, QualType Type,
 
       CompleteObject LitObj(LVal.Base, &Lit, Base->getType());
       return extractSubobject(Info, Conv, LitObj, LVal.Designator, RVal, AK);
-    } else if (isa<StringLiteral>(Base) || isa<MSCompositeStringLiteral>(Base) || isa<MSCastStringExpr>(Base) || isa<PredefinedExpr>(Base)) {
+    } else if (isa<StringLiteral>(Base) || isa<PredefinedExpr>(Base) || isa<MSCompositeStringLiteral>(Base) || isa<MSCastStringExpr>(Base)) {
       // Special-case character extraction so we don't have to construct an
       // APValue for the whole string.
       assert(LVal.Designator.Entries.size() <= 1 &&

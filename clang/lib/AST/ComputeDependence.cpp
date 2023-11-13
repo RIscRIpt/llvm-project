@@ -691,11 +691,11 @@ ExprDependence clang::computeDependence(GenericSelectionExpr *E,
 }
 
 ExprDependence clang::computeDependence(MSCompositeStringLiteral *E) {
-  return ExprDependence::All; // TODO
+  return ExprDependence::Instantiation; // TODO
 }
 
 ExprDependence clang::computeDependence(MSCastStringExpr *E) {
-  return ExprDependence::All; // TODO
+  return ExprDependence::Instantiation; // TODO
 }
 
 ExprDependence clang::computeDependence(DesignatedInitExpr *E) {

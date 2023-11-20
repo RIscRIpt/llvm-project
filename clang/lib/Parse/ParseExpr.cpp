@@ -3326,6 +3326,22 @@ ExprResult Parser::ParseMSCompositeStringLiteral(bool AllowUserDefinedLiteral,
         if (auto E = BuildStringLiteralExpression(StringToks, AllowUserDefinedLiteral, Unevaluated); !E.isInvalid())
           Literals.emplace_back(E.get());
         StringToks.clear();
+        /*
+         *
+         *
+         * #include <cstddef>
+
+constexpr size_t operator""_hlen(const wchar_t*, size_t len) {
+  return len;
+}
+
+void* foo() {
+    return __uPREFIX(__LPREFIX(U"wtf") u"qwe");
+}
+
+All prefixes are "ignored", and then UDL is applied
+
+*/
       }
     }
   } while (tokenIsLikeStringLiteral(Tok, getLangOpts()));

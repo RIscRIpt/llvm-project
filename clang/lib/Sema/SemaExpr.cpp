@@ -2060,6 +2060,13 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
   if (!UDLScope)
     return ExprError(Diag(UDSuffixLoc, diag::err_invalid_string_udl));
 
+
+  /// TODO: try moving code below to BuildCookedLiteralOperatorCall.
+  /// Problem: MSCompositeStringLiteral / MSCastStringExpr may contain UserDefinedLiteral,
+  /// but I need the other way around: UserDefinedLiteral must contain these classes.
+  /// To do this I need to detect UDL in ParseMSCompositeStringLiteral, and wrap my object into UDL
+  /// using BuildCookedLiteralOperatorCall.
+
   // C++11 [lex.ext]p5: The literal L is treated as a call of the form
   //   operator "" X (str, len)
   QualType SizeType = Context.getSizeType();

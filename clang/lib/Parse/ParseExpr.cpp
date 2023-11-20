@@ -3322,6 +3322,7 @@ ExprResult Parser::ParseMSCompositeStringLiteral(bool AllowUserDefinedLiteral,
       // String concatenation of consecutive literals.
       // Note: We have consumed a token above, so Tok now contains the next token.
       if (!tok::isStringLiteral(Tok.getKind())) {
+        // TODO: ALTERNATIVE BETTER WAY: TRY TO pass all new toks to StringToks here instead
         if (auto E = BuildStringLiteralExpression(StringToks, AllowUserDefinedLiteral, Unevaluated); !E.isInvalid())
           Literals.emplace_back(E.get());
         StringToks.clear();

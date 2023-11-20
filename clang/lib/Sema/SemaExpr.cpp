@@ -1922,6 +1922,8 @@ static SourceLocation getUDSuffixLoc(Sema &S, SourceLocation TokLoc,
                                         S.getLangOpts());
 }
 
+#include <fstream>
+
 /// BuildCookedLiteralOperatorCall - A user-defined literal was found. Look up
 /// the corresponding cooked (non-raw) literal operator, and build a call to it.
 static ExprResult BuildCookedLiteralOperatorCall(Sema &S, Scope *Scope,
@@ -1929,7 +1931,12 @@ static ExprResult BuildCookedLiteralOperatorCall(Sema &S, Scope *Scope,
                                                  SourceLocation UDSuffixLoc,
                                                  ArrayRef<Expr*> Args,
                                                  SourceLocation LitEndLoc) {
+  assert(!Args.empty() && "no arguments for literal operator");
   assert(Args.size() <= 2 && "too many arguments for literal operator");
+
+  // Make sure we're allowed user-defined literals here.
+  if (!UDLScope)
+    return ExprError(Diag(UDSuffixLoc, llvm::isa<StringLiteral>(Args.front()) ? diag::err_invalid_string_udl : diag::err_invalid_character_udl));
 
   QualType ArgTy[2];
   for (unsigned ArgIdx = 0; ArgIdx != Args.size(); ++ArgIdx) {
@@ -1944,10 +1951,14 @@ static ExprResult BuildCookedLiteralOperatorCall(Sema &S, Scope *Scope,
   OpNameInfo.setCXXLiteralOperatorNameLoc(UDSuffixLoc);
 
   LookupResult R(S, OpName, UDSuffixLoc, Sema::LookupOrdinaryName);
-  if (S.LookupLiteralOperator(Scope, R, llvm::ArrayRef(ArgTy, Args.size()),
+  auto x = S.LookupLiteralOperator(Scope, R, llvm::ArrayRef(ArgTy, Args.size()),
                               /*AllowRaw*/ false, /*AllowTemplate*/ false,
                               /*AllowStringTemplatePack*/ false,
-                              /*DiagnoseMissing*/ true) == Sema::LOLR_Error)
+                              /*DiagnoseMissing*/ true);
+
+  std::ofstream("stats", std::ios::app) << (int)x << '\n';
+
+  if (x == Sema::LOLR_Error)
     return ExprError();
 
   return S.BuildLiteralOperatorCall(R, OpNameInfo, Args, LitEndLoc);
@@ -2056,16 +2067,13 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
     getUDSuffixLoc(*this, StringTokLocs[Literal.getUDSuffixToken()],
                    Literal.getUDSuffixOffset());
 
-  // Make sure we're allowed user-defined literals here.
-  if (!UDLScope)
-    return ExprError(Diag(UDSuffixLoc, diag::err_invalid_string_udl));
-
-
   /// TODO: try moving code below to BuildCookedLiteralOperatorCall.
   /// Problem: MSCompositeStringLiteral / MSCastStringExpr may contain UserDefinedLiteral,
   /// but I need the other way around: UserDefinedLiteral must contain these classes.
   /// To do this I need to detect UDL in ParseMSCompositeStringLiteral, and wrap my object into UDL
   /// using BuildCookedLiteralOperatorCall.
+
+  return BuildCookedLiteralOperatorCall();
 
   // C++11 [lex.ext]p5: The literal L is treated as a call of the form
   //   operator "" X (str, len)
@@ -3759,10 +3767,6 @@ ExprResult Sema::ActOnCharacterConstant(const Token &Tok, Scope *UDLScope) {
   IdentifierInfo *UDSuffix = &Context.Idents.get(Literal.getUDSuffix());
   SourceLocation UDSuffixLoc =
     getUDSuffixLoc(*this, Tok.getLocation(), Literal.getUDSuffixOffset());
-
-  // Make sure we're allowed user-defined literals here.
-  if (!UDLScope)
-    return ExprError(Diag(UDSuffixLoc, diag::err_invalid_character_udl));
 
   // C++11 [lex.ext]p6: The literal L is treated as a call of the form
   //   operator "" X (ch)

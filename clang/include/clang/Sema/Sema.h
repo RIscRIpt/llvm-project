@@ -5749,8 +5749,9 @@ public:
 
   /// ActOnStringLiteral - The specified tokens were lexed as pasted string
   /// fragments (e.g. "foo" "bar" L"baz").
-  ExprResult ActOnStringLiteral(ArrayRef<Token> StringToks,
-                                Scope *UDLScope = nullptr);
+  ExprResult ActOnStringLiteral(ArrayRef<Token> StringToks, IdentifierInfo **UDSuffix = nullptr, SourceLocation *UDSuffixLoc = nullptr);
+
+  ExprResult ActOnUserDefinedStringLiteralSuffix(StringLiteral* Lit, IdentifierInfo *UDSuffix, SourceLocation UDSuffixLoc);
 
   ExprResult ActOnUnevaluatedStringLiteral(ArrayRef<Token> StringToks);
 

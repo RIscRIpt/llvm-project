@@ -3300,82 +3300,91 @@ Parser::ParseCompoundLiteralExpression(ParsedType Ty,
   return Result;
 }
 
-ExprResult Parser::ParseMSCompositeStringLiteral(bool AllowUserDefinedLiteral,
-                                                 bool Unevaluated) {
+ExprResult Parser::ParseMSCompositeStringLiteral(bool Unevaluated, std::optional<tok::TokenKind> Cast,
+                                                 IdentifierInfo **UDSuffix, SourceLocation *UDSuffixLoc) {
   assert(tokenIsLikeStringLiteral(Tok, getLangOpts()) &&
          "Not a string-literal-like token!");
 
-  SmallVector<Expr *, 4> Literals;
+  SmallVector<Expr *, 4> Exprs;
   SmallVector<Token, 4> StringToks;
 
   do {
     if (isFunctionLocalStringLiteralMacro(Tok.getKind(), getLangOpts())) {
       if (auto E = Actions.ActOnPredefinedExpr(Tok.getLocation(), Tok.getKind()); !E.isInvalid())
-        Literals.emplace_back(E.get());
+        Exprs.emplace_back(E.get());
       ConsumeToken();
     } else if (isMicrosoftCastStringMacro(Tok.getKind(), getLangOpts())) {
-      if (auto E = ParseMicrosoftCastStringExpression(); !E.isInvalid())
-        Literals.emplace_back(E.get());
+      if (auto E = ParseMicrosoftCastStringExpression(false, Unevaluated); !E.isInvalid())
+        Exprs.emplace_back(E.get());
     } else {
+      if (Cast)
+        Tok.setKind(*Cast);
       StringToks.emplace_back(Tok);
       ConsumeStringToken();
+
       // String concatenation of consecutive literals.
       // Note: We have consumed a token above, so Tok now contains the next token.
       if (!tok::isStringLiteral(Tok.getKind())) {
-        // TODO: ALTERNATIVE BETTER WAY: TRY TO pass all new toks to StringToks here instead
-        if (auto E = BuildStringLiteralExpression(StringToks, AllowUserDefinedLiteral, Unevaluated); !E.isInvalid())
-          Literals.emplace_back(E.get());
+        ExprResult E;
+        IdentifierInfo *currUDSuffix = nullptr;
+        SourceLocation currUDSuffixLoc;
+
+        if (Unevaluated) {
+          assert(!AllowUserDefinedLiteral && "UDL are always evaluated");
+          E = Actions.ActOnUnevaluatedStringLiteral(StringToks);
+        } else {
+          E = Actions.ActOnStringLiteral(StringToks,
+                                         UDSuffix ? &currUDSuffix : nullptr,
+                                         UDSuffix ? &currUDSuffixLoc : nullptr);
+        }
+
+        if (UDSuffix) {
+          if (!*UDSuffix || *UDSuffix == nextUDSuffix) {
+            *UDSuffix = currUDSuffix;
+            *UDSuffixLoc = currUDSuffixLoc; // keep the last location of UD suffix
+          } else {
+            // TODO: emit error
+          }
+        }
+
+        if (auto E = BuildStringLiteralExpression(StringToks, false, Unevaluated); !E.isInvalid())
+          Exprs.emplace_back(E.get());
         StringToks.clear();
-        /*
-         *
-         *
-         * #include <cstddef>
-
-constexpr size_t operator""_hlen(const wchar_t*, size_t len) {
-  return len;
-}
-
-void* foo() {
-    return __uPREFIX(__LPREFIX(U"wtf") u"qwe");
-}
-
-All prefixes are "ignored", and then UDL is applied
-
-*/
       }
     }
   } while (tokenIsLikeStringLiteral(Tok, getLangOpts()));
 
-  if (Literals.empty())
+  if (Exprs.empty())
     return ExprError();
 
   // Avoid creating unneeded AST nestedness: just return the only literal.
-  if (Literals.size() == 1)
-    return Literals[0];
+  if (Exprs.size() == 1)
+    return Exprs[0];
 
-  return Actions.BuildMSCompositeStringLiteral(Literals);
+  return Actions.BuildMSCompositeStringLiteral(Exprs);
 }
 
-ExprResult Parser::ParseMicrosoftCastStringExpression() {
+ExprResult Parser::ParseMicrosoftCastStringExpression(bool AllowUserDefinedLiteral, bool Unevaluated) {
   assert(isMicrosoftCastStringMacro(Tok.getKind(), getLangOpts()));
 
   Token StrTok;
   StrTok.startToken();
 
   auto PrefixKind = Tok.getKind();
-  QualType CastType = Actions.getASTContext().CharTy;
+  tok::TokenKind CastType = tok::string_literal;
   switch (Tok.getKind()) {
   case tok::kw___LPREFIX:
-    CastType = Actions.getASTContext().WCharTy;
+    CastType = tok::wide_string_literal;
     break;
   case tok::kw___lPREFIX:
-    CastType = Actions.getASTContext().Char8Ty;
+    if (getLangOpts().Char8)
+      CastType = tok::utf8_string_literal;
     break;
   case tok::kw___uPREFIX:
-    CastType = Actions.getASTContext().Char16Ty;
+    CastType = tok::utf16_string_literal;
     break;
   case tok::kw___UPREFIX:
-    CastType = Actions.getASTContext().Char32Ty;
+    CastType = tok::utf32_string_literal;
     break;
   default:
     llvm_unreachable("unexpected token kind");
@@ -3389,16 +3398,12 @@ ExprResult Parser::ParseMicrosoftCastStringExpression() {
   }
 
   // Review question: are we okay with recursion here?
-  auto StringExpr = ParseMSCompositeStringLiteral(true, true);
+  auto StringExpr = ParseMSCompositeStringLiteral(AllowUserDefinedLiteral, Unevaluated, CastType);
   if (!Parens.consumeClose()) {
     return ExprError();
   }
 
-  if (StringExpr.isInvalid()) {
-    return ExprError();
-  }
-
-  return Actions.BuildMSCastStringExpr(StringExpr.get(), CastType);
+  return StringExpr;
 }
 
 /// ParseStringLiteralExpression - This handles the various token types that
@@ -3435,14 +3440,6 @@ ExprResult Parser::ParseStringLiteralExpression(bool AllowUserDefinedLiteral,
     ConsumeStringToken();
   } while (tok::isStringLiteral(Tok.getKind()));
 
-  return BuildStringLiteralExpression(StringToks, AllowUserDefinedLiteral,
-                                      Unevaluated);
-}
-
-ExprResult
-Parser::BuildStringLiteralExpression(SmallVectorImpl<Token> &StringToks,
-                                     bool AllowUserDefinedLiteral,
-                                     bool Unevaluated) {
   if (Unevaluated) {
     assert(!AllowUserDefinedLiteral && "UDL are always evaluated");
     return Actions.ActOnUnevaluatedStringLiteral(StringToks);

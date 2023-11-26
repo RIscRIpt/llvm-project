@@ -1995,8 +1995,9 @@ ExprResult Sema::ActOnUnevaluatedStringLiteral(ArrayRef<Token> StringToks) {
 /// string.
 ///
 ExprResult
-Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
+Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, IdentifierInfo **UDSuffix, SourceLocation *UDSuffixLoc) {
   assert(!StringToks.empty() && "Must have at least one string!");
+  assert(UDSuffix && UDSuffixLoc || !(UDSuffix || UDSuffixLoc));
 
   StringLiteralParser Literal(StringToks, PP);
   if (Literal.hadError)
@@ -2058,23 +2059,26 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
                                              Kind, Literal.Pascal, StrTy,
                                              &StringTokLocs[0],
                                              StringTokLocs.size());
-  if (Literal.getUDSuffix().empty())
-    return Lit;
+  if (!Literal.getUDSuffix().empty()) {
+    IdentifierInfo *UDSuffixIdentifier = &Context.Idents.get(Literal.getUDSuffix());
+    SourceLocation UDSuffixLocaction =
+      getUDSuffixLoc(*this, StringTokLocs[Literal.getUDSuffixToken()],
+                     Literal.getUDSuffixOffset());
 
-  // We're building a user-defined literal.
-  IdentifierInfo *UDSuffix = &Context.Idents.get(Literal.getUDSuffix());
-  SourceLocation UDSuffixLoc =
-    getUDSuffixLoc(*this, StringTokLocs[Literal.getUDSuffixToken()],
-                   Literal.getUDSuffixOffset());
+    // Make sure we're allowed user-defined literals here.
+    if (!UDSuffix)
+      return ExprError(Diag(UDSuffixLocaction, diag::err_invalid_string_udl));
 
-  /// TODO: try moving code below to BuildCookedLiteralOperatorCall.
-  /// Problem: MSCompositeStringLiteral / MSCastStringExpr may contain UserDefinedLiteral,
-  /// but I need the other way around: UserDefinedLiteral must contain these classes.
-  /// To do this I need to detect UDL in ParseMSCompositeStringLiteral, and wrap my object into UDL
-  /// using BuildCookedLiteralOperatorCall.
+    *UDSuffix = UDSuffixIdentifier;
+    *UDSuffixLoc = UDSuffixLocaction;
+  } else {
+    *UDSuffix = nullptr;
+    *UDSuffixLoc = nullptr;
+  }
 
-  return BuildCookedLiteralOperatorCall();
+  return Lit;
 
+ExprResult Sema::ActOnUserDefinedStringLiteralSuffix(StringLiteral* Lit, IdentifierInfo *UDSuffix, SourceLocation UDSuffixLoc) {
   // C++11 [lex.ext]p5: The literal L is treated as a call of the form
   //   operator "" X (str, len)
   QualType SizeType = Context.getSizeType();
@@ -2085,7 +2089,7 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
   OpNameInfo.setCXXLiteralOperatorNameLoc(UDSuffixLoc);
 
   QualType ArgTy[] = {
-    Context.getArrayDecayedType(StrTy), SizeType
+    Context.getArrayDecayedType(Lit->getType()), SizeType
   };
 
   LookupResult R(*this, OpName, UDSuffixLoc, LookupOrdinaryName);
@@ -2097,7 +2101,7 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
   case LOLR_Cooked: {
     llvm::APInt Len(Context.getIntWidth(SizeType), Literal.GetNumStringChars());
     IntegerLiteral *LenArg = IntegerLiteral::Create(Context, Len, SizeType,
-                                                    StringTokLocs[0]);
+                                                    Lit->getLocation());
     Expr *Args[] = { Lit, LenArg };
 
     return BuildLiteralOperatorCall(R, OpNameInfo, Args, StringTokLocs.back());

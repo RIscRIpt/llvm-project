@@ -2644,14 +2644,6 @@ public:
     return getSema().BuildMSCompositeStringLiteral(SubExprs);
   }
 
-  /// Build a new Microsoft cast string expression.
-  ///
-  /// By default, performs semantic analysis to build the new expression.
-  /// Subclasses may override this routine to provide different behavior.
-  ExprResult RebuildMSCastStringExpr(Expr* SubExpr, QualType CastType) {
-    return getSema().BuildMSCastStringExpr(SubExpr, CastType);
-  }
-
   /// Build a new expression that references a declaration.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -11089,15 +11081,6 @@ TreeTransform<Derived>::TransformMSCompositeStringLiteral(MSCompositeStringLiter
 
 template<typename Derived>
 ExprResult
-TreeTransform<Derived>::TransformMSCastStringExpr(MSCastStringExpr *E) {
-  if (!E->isTypeDependent())
-    return E;
-
-  return getDerived().RebuildMSCastStringExpr(E->getSubExpr(), E->getType());
-}
-
-template<typename Derived>
-ExprResult
 TreeTransform<Derived>::TransformDeclRefExpr(DeclRefExpr *E) {
   NestedNameSpecifierLoc QualifierLoc;
   if (E->getQualifierLoc()) {
@@ -11196,6 +11179,8 @@ TreeTransform<Derived>::TransformCharacterLiteral(CharacterLiteral *E) {
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformUserDefinedLiteral(UserDefinedLiteral *E) {
+  // TODO: first, transform composite string literal
+  // then adjust int argument
   return getDerived().TransformCallExpr(E);
 }
 

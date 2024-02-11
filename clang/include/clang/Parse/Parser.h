@@ -1813,11 +1813,12 @@ public:
 
 private:
   ExprResult ParseMSCompositeStringLiteral(bool AllowUserDefinedLiteral,
-                                           bool Unevaluated);
+                                           bool Unevaluated,
+                                           std::optional<tok::TokenKind> Cast = std::nullopt);
 
   /// ParseMicrosoftCastStringExpression - parses current __LPREFIX-like
   /// expression and replaces current Tok with a resulting string literal.
-  ExprResult ParseMicrosoftCastStringExpression();
+  ExprResult ParseMicrosoftCastStringExpression(bool AllowUserDefinedLiteral, bool Unevaluated);
 
   ExprResult ParseStringLiteralExpression(bool AllowUserDefinedLiteral,
                                           bool Unevaluated);

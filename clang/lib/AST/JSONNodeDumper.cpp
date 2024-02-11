@@ -1354,10 +1354,6 @@ void JSONNodeDumper::VisitMSCompositeStringLiteral(const MSCompositeStringLitera
   // TODO
 }
 
-void JSONNodeDumper::VisitMSCastStringExpr(const MSCastStringExpr *E) {
-  // TODO
-}
-
 void JSONNodeDumper::VisitUnaryOperator(const UnaryOperator *UO) {
   JOS.attribute("isPostfix", UO->isPostfix());
   JOS.attribute("opcode", UnaryOperator::getOpcodeStr(UO->getOpcode()));

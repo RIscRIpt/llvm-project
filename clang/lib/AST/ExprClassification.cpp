@@ -122,7 +122,6 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
     // C++ [expr.prim.general]p1: A string literal is an lvalue.
   case Expr::StringLiteralClass:
   case Expr::MSCompositeStringLiteralClass:
-  case Expr::MSCastStringExprClass:
     // @encode is equivalent to its string
   case Expr::ObjCEncodeExprClass:
     // __func__ and friends are too.

@@ -1993,6 +1993,14 @@ ExprResult
 Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
   assert(!StringToks.empty() && "Must have at least one string!");
 
+  const StringLiteralParser* Literal;
+  std::variant<StringLiteralParser, MicrosoftStringLiteralParser> LiteralContainer;
+  if (LangOpts.MicrosoftExt) {
+    LiteralContainer = MicrosoftStringLiteralParser(StringToks, PP);
+  } else {
+    LiteralContainer = StringLiteralParser(StringToks, PP);
+  }
+
   StringLiteralParser Literal(StringToks, PP);
   if (Literal.hadError)
     return ExprError();
@@ -2135,10 +2143,6 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
 ExprResult Sema::BuildMSCompositeStringLiteral(ArrayRef<Expr*> Literals) {
   // TODO: correct type
   return MSCompositeStringLiteral::Create(Context, Context.CharTy, Literals);
-}
-
-ExprResult Sema::BuildMSCastStringExpr(Expr* StringExpr, QualType CastType) {
-  return MSCastStringExpr::Create(Context, CastType, StringExpr);
 }
 
 DeclRefExpr *

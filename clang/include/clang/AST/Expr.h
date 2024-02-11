@@ -6076,8 +6076,7 @@ public:
 // Microsoft Extensions
 //===----------------------------------------------------------------------===//
 
-/// MSCompositeStringLiteral - [ StringLiteral, PredefinedExpr,
-/// MSCastStringExpr ]
+/// MSCompositeStringLiteral - An array of [ StringLiteral, PredefinedExpr ]
 class MSCompositeStringLiteral final
     : public Expr,
       private llvm::TrailingObjects<MSCompositeStringLiteral, Expr*, StringLiteral*> {
@@ -6135,54 +6134,6 @@ public:
 
   const_child_range children() const {
     auto cs = const_cast<MSCompositeStringLiteral*>(this)->children();
-    return const_child_range(cs.begin(), cs.end());
-  }
-};
-
-/// MSCastStringExpr - __LPREFIX( MSCompositeStringLiteral, StringLiteral,
-/// PredefinedExpr, MSCastStringExpr )
-class MSCastStringExpr final
-    : public Expr,
-      private llvm::TrailingObjects<MSCastStringExpr, Expr *, StringLiteral*> {
-  friend class ASTStmtReader;
-  friend TrailingObjects;
-
-  SourceLocation Loc, RParenLoc;
-
-private:
-  MSCastStringExpr(ASTContext &Ctx, QualType Ty, Expr *SubExpr, StringLiteral* SL);
-
-  size_t numTrailingObjects(OverloadToken<Expr *>) const { return 1; }
-
-public:
-  static MSCastStringExpr *Create(ASTContext &Ctx, QualType Ty, Expr *SubExpr);
-
-  Expr *getSubExpr() { return *getTrailingObjects<Expr *>(); }
-  const Expr *getSubExpr() const { return *getTrailingObjects<Expr *>(); }
-
-  StringLiteral *getStringLiteral() {
-    return *getTrailingObjects<StringLiteral*>();
-  }
-  const StringLiteral *getStringLiteral() const {
-    return *getTrailingObjects<StringLiteral*>();
-  }
-
-  SourceLocation getLocation() const { return Loc; }
-  SourceLocation getBeginLoc() const { return getLocation(); }
-  SourceLocation getEndLoc() const { return RParenLoc; }
-
-  static bool classof(const Stmt *T) {
-    return T->getStmtClass() == MSCastStringExprClass;
-  }
-
-  // Iterators
-  child_range children() {
-    auto cs = reinterpret_cast<Stmt **>(getTrailingObjects<Expr *>());
-    return child_range(cs, cs + 1);
-  }
-
-  const_child_range children() const {
-    auto cs = const_cast<MSCastStringExpr*>(this)->children();
     return const_child_range(cs.begin(), cs.end());
   }
 };

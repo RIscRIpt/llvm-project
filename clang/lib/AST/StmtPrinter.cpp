@@ -1271,10 +1271,6 @@ void StmtPrinter::VisitMSCompositeStringLiteral(MSCompositeStringLiteral *E) {
   // TODO
 }
 
-void StmtPrinter::VisitMSCastStringExpr(MSCastStringExpr *E) {
-  // TODO
-}
-
 void StmtPrinter::VisitCharacterLiteral(CharacterLiteral *Node) {
   CharacterLiteral::print(Node->getValue(), Node->getKind(), OS);
 }

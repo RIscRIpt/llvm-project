@@ -2083,7 +2083,6 @@ static bool IsGlobalLValue(APValue::LValueBase B) {
   // A string literal has static storage duration.
   case Expr::StringLiteralClass:
   case Expr::MSCompositeStringLiteralClass:
-  case Expr::MSCastStringExprClass:
   case Expr::PredefinedExprClass:
   case Expr::ObjCStringLiteralClass:
   case Expr::ObjCEncodeExprClass:
@@ -2229,8 +2228,7 @@ static bool CheckLValueConstantExpression(EvalInfo &Info, SourceLocation Loc,
     if (Base.is<TypeInfoLValue>())
       InvalidBaseKind = 0;
     else if (isa_and_nonnull<StringLiteral>(BaseE) ||
-             isa_and_nonnull<MSCompositeStringLiteral>(BaseE) ||
-             isa_and_nonnull<MSCastStringExpr>(BaseE))
+             isa_and_nonnull<MSCompositeStringLiteral>(BaseE))
       InvalidBaseKind = 1;
     else if (isa_and_nonnull<MaterializeTemporaryExpr>(BaseE) ||
              isa_and_nonnull<LifetimeExtendedTemporaryDecl>(BaseVD))
@@ -3439,21 +3437,21 @@ static unsigned getBaseIndex(const CXXRecordDecl *Derived,
 /// Extract the value of a character from a string literal.
 static APSInt extractStringLiteralCharacter(EvalInfo &Info, const Expr *Lit,
                                             uint64_t Index) {
-  assert(!isa<SourceLocExpr>(Lit) &&
-         "SourceLocExpr should have already been converted to a StringLiteral");
-
+  // Review question: is this still relevant?
+  // In all git history I saw only `FIXME Support MakeStringConstant`,
+  // and no other mentions. What is this?
   // FIXME: Support MakeStringConstant
-  if (const auto *ObjCEnc = dyn_cast<ObjCEncodeExpr>(Lit)) {
-    std::string Str;
-    Info.Ctx.getObjCEncodingForType(ObjCEnc->getEncodedType(), Str);
-    assert(Index <= Str.size() && "Index too large");
-    return APSInt::getUnsigned(Str.c_str()[Index]);
-  }
 
-  // TODO: handle my Microsoft Extensions
-  if (auto PE = dyn_cast<PredefinedExpr>(Lit))
-    Lit = PE->getFunctionName();
-  const StringLiteral *S = cast<StringLiteral>(Lit);
+  const StringLiteral *S;
+  if (S = llvm::dyn_cast<StringLiteral>(Lit))
+    ;
+  else if (const auto* PE = llvm::dyn_cast<PredefinedExpr>(Lit))
+    S = PE->getFunctionName();
+  else if (const auto* CSL = llvm::dyn_cast<MSCompositeStringLiteral>(Lit))
+    S = CSL->getStringLiteral();
+  else
+    llvm_unreachable("unexpected Expr kind");
+
   const ConstantArrayType *CAT =
       Info.Ctx.getAsConstantArrayType(S->getType());
   assert(CAT && "string literal isn't an array");
@@ -3473,7 +3471,6 @@ static APSInt extractStringLiteralCharacter(EvalInfo &Info, const Expr *Lit,
 static void expandStringLiteral(EvalInfo &Info, const StringLiteral *S,
                                 APValue &Result,
                                 QualType AllocType = QualType()) {
-  // TODO: maybe handle my Microsoft extensions
   const ConstantArrayType *CAT = Info.Ctx.getAsConstantArrayType(
       AllocType.isNull() ? S->getType() : AllocType);
   assert(CAT && "string literal isn't an array");
@@ -4358,7 +4355,7 @@ handleLValueToRValueConversion(EvalInfo &Info, const Expr *Conv, QualType Type,
 
       CompleteObject LitObj(LVal.Base, &Lit, Base->getType());
       return extractSubobject(Info, Conv, LitObj, LVal.Designator, RVal, AK);
-    } else if (isa<StringLiteral>(Base) || isa<MSCompositeStringLiteral>(Base) || isa<MSCastStringExpr>(Base) || isa<PredefinedExpr>(Base)) {
+    } else if (isa<StringLiteral>(Base) || isa<PredefinedExpr>(Base) || isa<MSCompositeStringLiteral>(Base)) {
       // Special-case character extraction so we don't have to construct an
       // APValue for the whole string.
       assert(LVal.Designator.Entries.size() <= 1 &&
@@ -7703,9 +7700,6 @@ public:
   bool VisitMSCompositeStringLiteral(const MSCompositeStringLiteral *E) {
     return StmtVisitorTy::Visit(E->getStringLiteral());
   }
-  bool VisitMSCastStringExpr(const MSCastStringExpr *E) {
-    return StmtVisitorTy::Visit(E->getStringLiteral());
-  }
   bool VisitConstantExpr(const ConstantExpr *E) {
     if (E->hasAPValueResult())
       return DerivedSuccess(E->getAPValueResult(), E);
@@ -8420,7 +8414,6 @@ public:
 //  * CompoundLiteralExpr in C (and in global scope in C++)
 //  * StringLiteral
 //  * MSCompositeStringLiteral
-//  * MSCastStringExpr
 //  * PredefinedExpr
 //  * ObjCStringLiteralExpr
 //  * ObjCEncodeExpr
@@ -8457,7 +8450,6 @@ public:
   bool VisitMemberExpr(const MemberExpr *E);
   bool VisitStringLiteral(const StringLiteral *E) { return Success(E); }
   bool VisitMSCompositeStringLiteral(const MSCompositeStringLiteral *E) { return Success(E); }
-  bool VisitMSCastStringExpr(const MSCastStringExpr *E) { return Success(E); }
   bool VisitObjCEncodeExpr(const ObjCEncodeExpr *E) { return Success(E); }
   bool VisitCXXTypeidExpr(const CXXTypeidExpr *E);
   bool VisitCXXUuidofExpr(const CXXUuidofExpr *E);
@@ -10988,10 +10980,6 @@ namespace {
       return true;
     }
     bool VisitMSCompositeStringLiteral(const MSCompositeStringLiteral *E,QualType AllocType = QualType()) {
-      expandStringLiteral(Info, E->getStringLiteral(), Result, AllocType);
-      return true;
-    }
-    bool VisitMSCastStringExpr(const MSCastStringExpr *E, QualType AllocType = QualType()) {
       expandStringLiteral(Info, E->getStringLiteral(), Result, AllocType);
       return true;
     }
@@ -16062,7 +16050,6 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::ImaginaryLiteralClass:
   case Expr::StringLiteralClass:
   case Expr::MSCompositeStringLiteralClass:
-  case Expr::MSCastStringExprClass:
   case Expr::ArraySubscriptExprClass:
   case Expr::MatrixSubscriptExprClass:
   case Expr::OMPArraySectionExprClass:

@@ -675,11 +675,6 @@ void ASTStmtWriter::VisitMSCompositeStringLiteral(MSCompositeStringLiteral *E) {
   // TODO
 }
 
-void ASTStmtWriter::VisitMSCastStringExpr(MSCastStringExpr *E) {
-  VisitExpr(E);
-  // TODO
-}
-
 void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
   VisitExpr(E);
 

@@ -5905,13 +5905,13 @@ public:
 
   /// ActOnStringLiteral - The specified tokens were lexed as pasted string
   /// fragments (e.g. "foo" "bar" L"baz").
-  ExprResult ActOnStringLiteral(ArrayRef<Token> StringToks,
-                                Scope *UDLScope = nullptr);
+  ExprResult ActOnStringLiteral(ArrayRef<Token> StringToks, IdentifierInfo **UDSuffix = nullptr, SourceLocation *UDSuffixLoc = nullptr);
+
+  ExprResult ActOnUserDefinedStringLiteralSuffix(StringLiteral* Lit, IdentifierInfo *UDSuffix, SourceLocation UDSuffixLoc);
 
   ExprResult ActOnUnevaluatedStringLiteral(ArrayRef<Token> StringToks);
 
   ExprResult BuildMSCompositeStringLiteral(ArrayRef<Expr*> Literals);
-  ExprResult BuildMSCastStringExpr(Expr* StringExpr, QualType CastType);
 
   /// ControllingExprOrType is either an opaque pointer coming out of a
   /// ParsedType or an Expr *. FIXME: it'd be better to split this interface

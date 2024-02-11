@@ -3560,7 +3560,6 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case ImaginaryLiteralClass:
   case StringLiteralClass:
   case MSCompositeStringLiteralClass:
-  case MSCastStringExprClass:
   case CharacterLiteralClass:
   case OffsetOfExprClass:
   case ImplicitValueInitExprClass:
@@ -4910,14 +4909,12 @@ MaterializeString(ASTContext& Ctx, QualType CharTy, ArrayRef<Expr*> Exprs) {
       ;
     else if (const auto* PE = llvm::dyn_cast<PredefinedExpr>(E))
       StrLit = PE->getFunctionName();
-    else if (const auto* CSE = llvm::dyn_cast<MSCastStringExpr>(E))
-      StrLit = CSE->getStringLiteral();
     else if (const auto* CSL = llvm::dyn_cast<MSCompositeStringLiteral>(E))
       StrLit = CSL->getStringLiteral();
     else
       llvm_unreachable("unexpected Expr kind");
 
-    Buffer.append(StrLit->getString());
+    Buffer.append(StrLit->getBytes());
   }
 
   auto String = Buffer.str();
@@ -4942,22 +4939,6 @@ MSCompositeStringLiteral* MSCompositeStringLiteral::Create(ASTContext &Ctx, Qual
                            alignof(MSCompositeStringLiteral));
   auto [StrTy, SL] = MaterializeString(Ctx, Ty, SubExprs);
   return new (Mem) MSCompositeStringLiteral(Ctx, StrTy, SubExprs, SL);
-}
-
-MSCastStringExpr::MSCastStringExpr(ASTContext &Ctx, QualType Ty,
-                                   Expr *SubExpr, StringLiteral* SL)
-    : Expr(MSCastStringExprClass, Ty, VK_LValue, OK_Ordinary) {
-  *getTrailingObjects<Expr *>() = SubExpr;
-  *getTrailingObjects<StringLiteral*>() = SL;
-  setDependence(computeDependence(this));
-}
-
-MSCastStringExpr *
-MSCastStringExpr::Create(ASTContext &Ctx, QualType Ty, Expr *SubExpr) {
-  void *Mem =
-      Ctx.Allocate(totalSizeToAlloc<Expr *, StringLiteral*>(1, 1), alignof(MSCastStringExpr));
-  auto [StrTy, SL] = MaterializeString(Ctx, Ty, { SubExpr });
-  return new (Mem) MSCastStringExpr(Ctx, StrTy, SubExpr, SL);
 }
 
 AtomicExpr::AtomicExpr(SourceLocation BLoc, ArrayRef<Expr *> args, QualType t,

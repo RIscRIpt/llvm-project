@@ -229,10 +229,30 @@ enum class StringLiteralEvalMethod {
   Unevaluated,
 };
 
+/// StringLiteralParserBase - Common interface for string literal parsers.
+class StringLiteralParserBase {
+  const SourceManager &SM;
+  const LangOptions &Features;
+  const TargetInfo &Target;
+  DiagnosticsEngine *Diags;
+
+  unsigned MaxTokenLength;
+  unsigned SizeBound;
+  unsigned CharByteWidth;
+  tok::TokenKind Kind;
+  SmallString<512> ResultBuf;
+  char *ResultPtr; // cursor
+  SmallString<32> UDSuffixBuf;
+  unsigned UDSuffixToken;
+  unsigned UDSuffixOffset;
+  StringLiteralEvalMethod EvalMethod;
+
+};
+
 /// StringLiteralParser - This decodes string escape characters and performs
 /// wide string analysis and Translation Phase #6 (concatenation of string
 /// literals) (C99 5.1.1.2p1).
-class StringLiteralParser {
+class StringLiteralParser : public StringLiteralParserBase {
   const SourceManager &SM;
   const LangOptions &Features;
   const TargetInfo &Target;
@@ -310,9 +330,15 @@ public:
 
 private:
   void init(ArrayRef<Token> StringToks);
+  void consumeStringTokens(ArrayRef<Token> StringToks);
+
   bool CopyStringFragment(const Token &Tok, const char *TokBegin,
                           StringRef Fragment);
   void DiagnoseLexingError(SourceLocation Loc);
+};
+
+class MicrosoftStringLiteralParser {
+  SmallVector<std::pair<unsigned, tok::TokenKind>> FnLocalMacros;
 };
 
 }  // end namespace clang

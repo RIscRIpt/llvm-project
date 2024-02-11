@@ -91,7 +91,6 @@ class MemberExpr;
 class ShuffleVectorExpr;
 class GenericSelectionExpr;
 class MSCompositeStringLiteral;
-class MSCastStringExpr;
 class DesignatedInitExpr;
 class ParenListExpr;
 class PseudoObjectExpr;
@@ -187,7 +186,6 @@ ExprDependence computeDependence(ShuffleVectorExpr *E);
 ExprDependence computeDependence(GenericSelectionExpr *E,
                                  bool ContainsUnexpandedPack);
 ExprDependence computeDependence(MSCompositeStringLiteral *E);
-ExprDependence computeDependence(MSCastStringExpr *E);
 ExprDependence computeDependence(DesignatedInitExpr *E);
 ExprDependence computeDependence(ParenListExpr *E);
 ExprDependence computeDependence(PseudoObjectExpr *E);

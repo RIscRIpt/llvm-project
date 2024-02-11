@@ -1339,10 +1339,6 @@ void StmtProfiler::VisitMSCompositeStringLiteral(const MSCompositeStringLiteral 
   // TODO
 }
 
-void StmtProfiler::VisitMSCastStringExpr(const MSCastStringExpr *E) {
-  // TODO
-}
-
 void StmtProfiler::VisitIntegerLiteral(const IntegerLiteral *S) {
   VisitExpr(S);
   S->getValue().Profile(ID);
